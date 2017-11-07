@@ -2,7 +2,7 @@
   "name": "ilp3",
   "version": "0.1.0",
   "description": "",
-  "main": "ilp3.js",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,7 +13,7 @@
     "koa": "^2.4.1",
     "koa-bodyparser": "^4.2.0",
     "koa-router": "^7.2.1",
-    "superagent": "^3.8.0",
-    "uuid": "^3.1.0"
+    "node-fetch": "^1.7.3",
+    "superagent": "^3.8.0"
   }
 }

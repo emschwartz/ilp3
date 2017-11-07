@@ -1,18 +1,14 @@
 'use strict'
 
-const ILP3 = require('./ilp3')
+const ILP3 = require('.')
 const crypto = require('crypto')
 
-const fulfillment = crypto.randomBytes(32).toString('base64')
-const h = crypto.createHash('sha256')
-h.update(Buffer.from(fulfillment, 'base64'))
-const condition = h.digest().toString('base64')
-
-const receiver = ILP3.createReceiver()
+const secret = crypto.randomBytes(32)
+const receiver = ILP3.PSK.createReceiver({ secret })
 receiver.use(async (ctx) => {
-  console.log('receiver got transfer', ctx.state.transfer)
-  ctx.state.fulfillment = fulfillment
-  ctx.state.data = 'hello'
+  if (ctx.state.fulfillment) {
+    ctx.state.data = 'thanks for the money!'
+  }
 })
 receiver.listen(4000)
 
@@ -24,11 +20,14 @@ const connector = ILP3.createConnector({
 connector.listen(3000)
 
 async function main () {
-  const result = await ILP3.send('http://localhost:3000', {
-    destination: 'test.receiver',
-    amount: '10',
-    condition: condition,
-    expiry: new Date(Date.now() + 10000).toISOString()
+  const result = await ILP3.PSK.send({
+    connector: 'http://localhost:3000',
+    sharedSecret: secret,
+    transfer: {
+      destination: 'test.receiver',
+      amount: '10',
+      expiry: new Date(Date.now() + 10000).toISOString()
+    }
   })
   console.log('sender got fulfillment', result)
 }
