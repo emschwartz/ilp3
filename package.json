@@ -1,0 +1,18 @@
+{
+  "name": "ilp3",
+  "version": "0.1.0",
+  "description": "",
+  "main": "ilp3.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Evan Schwartz <evan@ripple.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "koa": "^2.4.1",
+    "koa-bodyparser": "^4.2.0",
+    "koa-route": "^3.2.0",
+    "superagent": "^3.8.0",
+    "uuid": "^3.1.0"
+  }
+}
