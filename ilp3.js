@@ -2,7 +2,6 @@
 
 const fetch = require('node-fetch')
 const Koa = require('koa')
-// TODO check what the overhead of koa-router is and whether there's something faster
 const Router = require('koa-router')
 const getRawBody = require('raw-body')
 const Debug = require('debug')
@@ -48,9 +47,10 @@ function receiverMiddleware () {
     await next()
 
     if (ctx.state.fulfillment) {
+      debug('responding to sender with fulfillment')
       ctx.status = 200
       ctx.set('ILP-Fulfillment', ctx.state.fulfillment)
-      ctx.body = ctx.body || ctx.state.data
+      ctx.body = ctx.state.data
     }
   }
 }
@@ -84,15 +84,18 @@ function createConnector (opts) {
       }
     }
     if (!longestPrefix) {
+      debug('no route found for destination:', transfer.destination)
       return ctx.throw(404, 'no route found')
     }
     const nextConnector = routingTable[longestPrefix]
     // TODO apply exchange rate
     try {
+      debug('forwarding transfer to next connector:', nextConnector, transfer)
       const result = await send({
         connector: nextConnector,
         transfer
       })
+      debug('responding to sender with fulfillment')
       ctx.state.fulfillment = result.fulfillment
       ctx.state.data = result.data
     } catch (err) {

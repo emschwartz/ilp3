@@ -6,16 +6,17 @@ const ILP3 = require('./ilp3')
 const Router = require('koa-router')
 const Debug = require('debug')
 
+const ENCRYPTION_ALGORITHM = 'aes-256-gcm'
 const PSK_FULFILLMENT_STRING = 'ilp3_psk_fulfillment'
+const PSK_ENCRYPTION_STRING = 'ilp3_psk_encryption'
 const NONCE_LENGTH = 18
+const AUTH_TAG_LENGTH = 16
 
 // transfer should have all fields except condition
-function send ({ connector, sharedSecret, transfer }) {
+async function send ({ connector, sharedSecret, transfer }) {
   const debug = Debug('ilp3-psk:send')
   debug('sending transfer to connector:', connector, transfer)
-  const nonce = getNonce()
 
-  // TODO encrypt data
   let userData
   if (Buffer.isBuffer(transfer.data)) {
     userData = transfer.data
@@ -26,10 +27,7 @@ function send ({ connector, sharedSecret, transfer }) {
   } else {
     userData = Buffer.alloc(0)
   }
-  const data = Buffer.concat([
-    nonce,
-    userData
-  ])
+  const data = encrypt(sharedSecret, userData)
 
   const key = hmac(sharedSecret, PSK_FULFILLMENT_STRING)
   const fulfillment = hmac(key, data)
@@ -39,10 +37,15 @@ function send ({ connector, sharedSecret, transfer }) {
     data,
     condition
   })
-  return ILP3.send({
+  const result = await ILP3.send({
     connector,
     transfer: pskTransfer
   })
+  return {
+    fulfillment: result.fulfillment,
+    // TODO handle decryption errors
+    data: decrypt(sharedSecret, result.data)
+  }
 }
 
 function receiverMiddleware ({ secret }) {
@@ -60,9 +63,23 @@ function receiverMiddleware ({ secret }) {
     if (condition !== ctx.state.transfer.condition) {
       return ctx.throw(400, 'unable to regenerate fulfillment')
     }
+    let decryptedData
+    try {
+      decryptedData = decrypt(secret, data)
+    } catch (err) {
+      debug('error decrypting data:', err)
+      return ctx.throw(400, 'unable to decrypt data')
+    }
+
     ctx.state.fulfillment = fulfillment.toString('base64')
+    ctx.state.transfer.data = decryptedData
+
     await next()
-    // TODO encrypt response data
+
+    // Encrypt response data
+    if (ctx.state.data) {
+      ctx.state.data = encrypt(secret, ctx.state.data)
+    }
   }
   return receiverMiddleware
 }
@@ -97,6 +114,36 @@ function hash (preimage) {
   const h = crypto.createHash('sha256')
   h.update(Buffer.from(preimage, 'base64'))
   return h.digest()
+}
+
+function encrypt (secret, buffer) {
+  const nonce = getNonce()
+  const pskEncryptionKey = hmac(secret, PSK_ENCRYPTION_STRING)
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, pskEncryptionKey, nonce)
+
+  const encryptedInitial = cipher.update(buffer)
+  const encryptedFinal = cipher.final()
+  const tag = cipher.getAuthTag()
+  return Buffer.concat([
+    nonce,
+    tag,
+    encryptedInitial,
+    encryptedFinal
+  ])
+}
+
+function decrypt (secret, buffer) {
+  const pskEncryptionKey = hmac(secret, PSK_ENCRYPTION_STRING)
+  const nonce = buffer.slice(0, NONCE_LENGTH)
+  const tag = buffer.slice(NONCE_LENGTH, NONCE_LENGTH + AUTH_TAG_LENGTH)
+  const encrypted = buffer.slice(NONCE_LENGTH + AUTH_TAG_LENGTH)
+  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, pskEncryptionKey, nonce)
+  decipher.setAuthTag(tag)
+
+  return Buffer.concat([
+    decipher.update(encrypted),
+    decipher.final()
+  ])
 }
 
 exports.send = send
