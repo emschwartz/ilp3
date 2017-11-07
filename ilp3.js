@@ -4,8 +4,10 @@ const fetch = require('node-fetch')
 const Koa = require('koa')
 // TODO check what the overhead of koa-router is and whether there's something faster
 const Router = require('koa-router')
-const bodyParser = require('koa-bodyparser')
+const getRawBody = require('raw-body')
 const Debug = require('debug')
+
+const BODY_SIZE_LIMIT = '1mb'
 
 async function send ({ connector, transfer }) {
   const debug = Debug('ilp3:send')
@@ -15,41 +17,20 @@ async function send ({ connector, transfer }) {
     'ILP-Expiry': transfer.expiry,
     'ILP-Condition': transfer.condition,
     'ILP-Destination': transfer.destination,
-    'User-Agent': ''
+    'User-Agent': '',
+    'Content-Type': 'application/octet-stream'
   }, transfer.additionalHeaders || {})
-  let body
-  if (!transfer.data) {
-    body = null
-  } else if (typeof transfer.data === 'object' && !Buffer.isBuffer(transfer.data)) {
-    body = JSON.stringify(transfer.data)
-    headers['Content-Type'] = 'application/json'
-  } else {
-    // TODO send data as binary
-    body = transfer.data.toString('base64')
-    headers['Content-Type'] = 'text/plain'
-  }
-  const result = await fetch(connector, {
+  const response = await fetch(connector, {
     method: 'POST',
     headers,
-    body,
+    body: transfer.data,
     compress: false
   })
 
-  const fulfillment = result.headers.get('ilp-fulfillment')
-  const contentType = result.headers.get('content-type')
-  let data
-  if (contentType.startsWith('application/json')) {
-    data = await result.json()
-  } else if (contentType.startsWith('application/octet-stream')) {
-    data = await result.buffer()
-  } else if (contentType.startsWith('text/plain')) {
-    data = await result.text()
-  } else {
-    debug('got response with unrecognized content-type:', contentType)
-    data = null
-  }
-
-  debug(`got fulfillment: ${fulfillment} and data:`, data)
+  const fulfillment = response.headers.get('ilp-fulfillment')
+  const contentType = response.headers.get('content-type')
+  const data = await response.buffer()
+  debug(`got fulfillment: ${fulfillment} and data:`, data.toString('base64'))
   return {
     fulfillment,
     data
@@ -59,7 +40,7 @@ async function send ({ connector, transfer }) {
 function receiverMiddleware () {
   return async (ctx, next) => {
     const debug = Debug('ilp3:receiver')
-    const transfer = getTransferFromRequest(ctx.request)
+    const transfer = await getTransferFromRequest(ctx)
     debug('got transfer:', transfer)
     // TODO validate transfer details
     ctx.state.transfer = transfer
@@ -81,10 +62,6 @@ function createReceiver (opts) {
   const path = opts.path || '/'
   const receiver = new Koa()
   const router = new Router()
-  receiver.use(bodyParser({
-    enableTypes: ['text', 'json'],
-    strict: true
-  }))
   router.post(path, receiverMiddleware())
   receiver.use(router.routes())
   receiver.use(router.allowedMethods())
@@ -127,13 +104,16 @@ function createConnector (opts) {
   return connector
 }
 
-function getTransferFromRequest (request) {
+async function getTransferFromRequest (ctx) {
+  const body = await getRawBody(ctx.req, {
+    limit: BODY_SIZE_LIMIT
+  })
   return {
-    amount: request.headers['ilp-amount'],
-    expiry: request.headers['ilp-expiry'],
-    condition: request.headers['ilp-condition'],
-    destination: request.headers['ilp-destination'],
-    data: request.body
+    amount: ctx.request.headers['ilp-amount'],
+    expiry: ctx.request.headers['ilp-expiry'],
+    condition: ctx.request.headers['ilp-condition'],
+    destination: ctx.request.headers['ilp-destination'],
+    data: body
   }
 }
 

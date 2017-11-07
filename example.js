@@ -20,7 +20,7 @@ const connector = ILP3.createConnector({
 connector.listen(3000)
 
 async function main () {
-  const result = await ILP3.PSK.send({
+  const { fulfillment, data } = await ILP3.PSK.send({
     connector: 'http://localhost:3000',
     sharedSecret: secret,
     transfer: {
@@ -29,7 +29,7 @@ async function main () {
       expiry: new Date(Date.now() + 10000).toISOString()
     }
   })
-  console.log('sender got fulfillment', result)
+  console.log(`sender got fulfillment: ${fulfillment}, data: ${data.toString('utf8')}`)
 }
 
 main().catch((err) => console.log(err))

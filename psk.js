@@ -14,11 +14,23 @@ function send ({ connector, sharedSecret, transfer }) {
   const debug = Debug('ilp3-psk:send')
   debug('sending transfer to connector:', connector, transfer)
   const nonce = getNonce()
+
   // TODO encrypt data
+  let userData
+  if (Buffer.isBuffer(transfer.data)) {
+    userData = transfer.data
+  } else if (typeof transfer.data === 'object') {
+    userData = Buffer.from(JSON.stringify(transfer.data), 'utf8')
+  } else if (typeof transfer.data === 'string') {
+    userData = Buffer.from(transfer.data, 'utf8')
+  } else {
+    userData = Buffer.alloc(0)
+  }
   const data = Buffer.concat([
     nonce,
-    Buffer.from(transfer.data || '', 'utf8')
+    userData
   ])
+
   const key = hmac(sharedSecret, PSK_FULFILLMENT_STRING)
   const fulfillment = hmac(key, data)
   const condition = hash(fulfillment).toString('base64')
@@ -36,12 +48,12 @@ function send ({ connector, sharedSecret, transfer }) {
 function receiverMiddleware ({ secret }) {
   const debug = Debug('ilp3-psk:receiver')
   const key = hmac(secret, PSK_FULFILLMENT_STRING)
+
   async function receiverMiddleware (ctx, next) {
     if (!ctx.state.transfer.data) {
       return ctx.throw(400, 'unable to regenerate fulfillment')
     }
-    // TODO don't base64-encode the data
-    const data = Buffer.from(ctx.state.transfer.data, 'base64')
+    const data = ctx.state.transfer.data || ''
     const fulfillment = hmac(key, data)
     const condition = hash(fulfillment).toString('base64')
     debug(`regenerated fulfillment: ${fulfillment.toString('base64')} and condition ${condition}, original condition: ${ctx.state.transfer.condition}`)
@@ -49,7 +61,8 @@ function receiverMiddleware ({ secret }) {
       return ctx.throw(400, 'unable to regenerate fulfillment')
     }
     ctx.state.fulfillment = fulfillment.toString('base64')
-    return next()
+    await next()
+    // TODO encrypt response data
   }
   return receiverMiddleware
 }
