@@ -13,7 +13,11 @@ const BODY_SIZE_LIMIT = '1mb'
 async function send ({ connector, transfer }) {
   // TODO recognize if connector has a macaroon in the URL and caveat it (for a short expiry) if so
   const debug = Debug('ilp3:send')
-  debug('sending transfer', transfer)
+  if (Buffer.isBuffer(transfer.data)) {
+    debug('sending transfer:', Object.assign({}, transfer, { data: transfer.data.toString('base64') }))
+  } else {
+    debug('sending transfer:', Object.assign({}, transfer, { data: '[Stream]' }))
+  }
   const headers = Object.assign({
     'ILP-Amount': transfer.amount,
     'ILP-Expiry': transfer.expiry,
@@ -73,11 +77,15 @@ function macaroonVerifier ({ secret }) {
   }
 }
 
-function receiverMiddleware () {
+function receiverMiddleware ({ streamData }) {
   return async (ctx, next) => {
     const debug = Debug('ilp3:receiver')
-    const transfer = await getTransferFromRequest(ctx)
-    debug('got transfer:', transfer)
+    const transfer = await getTransferFromRequest(ctx, streamData)
+    if (streamData) {
+      debug('got transfer:', Object.assign({}, transfer, { data: '[Stream]' }))
+    } else {
+      debug('got transfer:', transfer)
+    }
     // TODO validate transfer details
     ctx.state.transfer = transfer
 
@@ -97,26 +105,27 @@ function createReceiver (opts) {
     opts = {}
   }
   const path = opts.path || '*'
+  const streamData = opts.streamData || false
   const receiver = new Koa()
   const router = new Router()
   router.post(path, macaroonVerifier({ secret: opts.secret }))
-  router.post(path, receiverMiddleware())
+  router.post(path, receiverMiddleware({ streamData }))
   receiver.use(router.routes())
   receiver.use(router.allowedMethods())
   return receiver
 }
 
 
-async function getTransferFromRequest (ctx) {
-  const body = await getRawBody(ctx.req, {
+async function getTransferFromRequest (ctx, streamData) {
+  const data = (streamData ? ctx.req : await getRawBody(ctx.req, {
     limit: BODY_SIZE_LIMIT
-  })
+  }))
   return {
     amount: ctx.request.headers['ilp-amount'],
     expiry: ctx.request.headers['ilp-expiry'],
     condition: ctx.request.headers['ilp-condition'],
     destination: ctx.request.headers['ilp-destination'],
-    data: body
+    data
   }
 }
 

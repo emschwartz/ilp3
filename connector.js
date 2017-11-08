@@ -17,7 +17,11 @@ function createConnector (opts) {
   const secret = opts.secret
   let rates
 
-  const connector = ILP3.createReceiver({ secret })
+  const connector = ILP3.createReceiver({
+    secret,
+    // This will make transfer.data be a stream, which node-fetch will pipe to the destination
+    streamData: true
+  })
   const router = new Router()
   router.post(path, async (ctx, next) => {
     // TODO don't make this call in the flow of the payment
@@ -64,7 +68,7 @@ function createConnector (opts) {
     }
 
     try {
-      debug('forwarding transfer to next connector:', nextHop.connector, outgoingTransfer)
+      debug('forwarding transfer to next connector:', nextHop.connector, Object.assign({}, outgoingTransfer, { data: '[Stream]' }))
       const result = await ILP3.send({
         connector: nextHop.connector,
         transfer: outgoingTransfer
