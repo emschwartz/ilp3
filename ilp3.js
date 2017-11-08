@@ -4,7 +4,6 @@ const assert = require('assert')
 const url = require('url')
 const fetch = require('node-fetch')
 const Koa = require('koa')
-const Router = require('koa-router')
 const getRawBody = require('raw-body')
 const Debug = require('debug')
 const Macaroon = require('macaroon')
@@ -13,7 +12,6 @@ const BODY_SIZE_LIMIT = '1mb'
 const MACAROON_EXPIRY_TIME = 2000
 
 async function send ({ connector, transfer, streamData = false }) {
-  // TODO recognize if connector has a macaroon in the URL and caveat it (for a short expiry) if so
   const debug = Debug('ilp3:send')
   if (streamData) {
     debug('sending transfer:', Object.assign({}, transfer, { data: '[Stream]' }))
@@ -89,10 +87,10 @@ function macaroonVerifier ({ secret }) {
   const debug = Debug('ilp3-macaroon:verifier')
   assert(secret, 'secret is required')
   assert(Buffer.from(secret, 'base64').length >= 32, 'secret must be at least 32 bytes')
+
   return async (ctx, next) => {
     try {
       const encoded = ctx.request.headers.authorization.replace(/^bearer /i, '')
-      debug('got macaroon', encoded)
       const macaroon = Macaroon.importMacaroon(encoded)
       const account = Buffer.from(macaroon.identifier).toString('utf8')
       debug('macaroon is for account:', account)
@@ -116,10 +114,28 @@ function macaroonVerifier ({ secret }) {
   }
 }
 
-function receiverMiddleware ({ streamData = false }) {
+function transfersOverHttp (opts) {
+  if (!opts) {
+    opts = {}
+  }
+  const streamData = !!opts.streamData
+
   return async (ctx, next) => {
+    if (ctx.method.toLowerCase() !== 'post') {
+      return next()
+    }
     const debug = Debug('ilp3:receiver')
-    const transfer = await getTransferFromRequest(ctx, streamData)
+    const data = (streamData ? ctx.req : await getRawBody(ctx.req, {
+      limit: BODY_SIZE_LIMIT
+    }))
+    const transfer = {
+      amount: ctx.request.headers['ilp-amount'],
+      expiry: ctx.request.headers['ilp-expiry'],
+      condition: ctx.request.headers['ilp-condition'],
+      destination: ctx.request.headers['ilp-destination'],
+      data
+    }
+
     if (streamData) {
       debug('got transfer:', Object.assign({}, transfer, { data: '[Stream]' }))
     } else {
@@ -139,34 +155,6 @@ function receiverMiddleware ({ streamData = false }) {
   }
 }
 
-function createReceiver (opts) {
-  if (!opts) {
-    opts = {}
-  }
-  const path = opts.path || '*'
-  const streamData = opts.streamData || false
-  const receiver = new Koa()
-  const router = new Router()
-  router.post(path, macaroonVerifier({ secret: opts.secret }))
-  router.post(path, receiverMiddleware({ streamData }))
-  receiver.use(router.routes())
-  receiver.use(router.allowedMethods())
-  return receiver
-}
-
-
-async function getTransferFromRequest (ctx, streamData) {
-  const data = (streamData ? ctx.req : await getRawBody(ctx.req, {
-    limit: BODY_SIZE_LIMIT
-  }))
-  return {
-    amount: ctx.request.headers['ilp-amount'],
-    expiry: ctx.request.headers['ilp-expiry'],
-    condition: ctx.request.headers['ilp-condition'],
-    destination: ctx.request.headers['ilp-destination'],
-    data
-  }
-}
-
 exports.send = send
-exports.createReceiver = createReceiver
+exports.transfersOverHttp = transfersOverHttp
+exports.macaroonVerifier = macaroonVerifier

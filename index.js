@@ -1,7 +1,7 @@
 const ILP3 = require('./ilp3')
-const { createConnector } = require('./connector')
+const { connector } = require('./connector')
 const PSK = require('./psk')
 
 module.exports = ILP3
-module.exports.createConnector = createConnector
+module.exports.connector = connector
 module.exports.PSK = PSK

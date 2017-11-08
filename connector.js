@@ -1,7 +1,6 @@
 'use strict'
 
 const debug = require('debug')('ilp3-connector')
-const Router = require('koa-router')
 const fetch = require('node-fetch')
 const Big = require('big.js')
 const ILP3 = require('./ilp3')
@@ -9,7 +8,8 @@ const ILP3 = require('./ilp3')
 const FIXERIO_API = 'https://api.fixer.io/latest'
 const COINMARKETCAP_API = 'https://api.coinmarketcap.com/v1/ticker/?convert=EUR&limit=25'
 
-function createConnector (opts) {
+// TODO split the forwarder part from the send functionality (so it works with other ledger protocols)
+function connector (opts) {
   const routes = opts.routes
   const path = opts.path || '*'
   const minMessageWindow = opts.minMessageWindow || 1000
@@ -18,27 +18,24 @@ function createConnector (opts) {
   let connected = false
   let rates
 
-  const connector = ILP3.createReceiver({
-    secret,
-    // This will make transfer.data be a stream, which node-fetch will pipe to the destination
-    streamData: true
-  })
-
-  connector.connect = async () => {
+  async function connect () {
     rates = await getExchangeRates()
     connected = true
     debug('connected')
   }
 
-  const router = new Router()
-  router.post(path, async (ctx, next) => {
+  // TODO is it too janky to set this off in the background when it's created?
+  const connectedPromise = connect()
+
+  return async function forwardPayments (ctx, next) {
     if (!connected) {
-      return ctx.throw(500, 'Connector must be connected first before it can forward payments')
+      await connectedPromise
     }
 
     const from = ctx.state.account
     if (!routes[from]) {
-      return ctx.throw(401)
+      debug('no route available for account:', from)
+      return ctx.throw(404, new Error('no route from: ' + from))
     }
 
     const transfer = ctx.state.transfer
@@ -87,9 +84,7 @@ function createConnector (opts) {
       debug('error forwarding payment to: ' + nextHop.connector, err)
       return ctx.throw(err)
     }
-  })
-  connector.use(router.routes())
-  return connector
+  }
 }
 
 function getRate ({ routes, rates, from, to, spread = 0 }) {
@@ -143,4 +138,4 @@ async function _getRatesFromCoinMarketCap () {
   return rates
 }
 
-exports.createConnector = createConnector
+exports.connector = connector

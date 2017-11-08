@@ -3,6 +3,7 @@
 const ILP3 = require('.')
 const crypto = require('crypto')
 const Macaroon = require('macaroon')
+const Koa = require('koa')
 
 function base64url (buffer) {
   return Buffer.from(buffer, 'base64')
@@ -13,7 +14,10 @@ function base64url (buffer) {
 }
 
 const receiverSecret = crypto.randomBytes(32)
-const receiver = ILP3.PSK.createReceiver({ secret: receiverSecret })
+const receiver = new Koa()
+receiver.use(ILP3.macaroonVerifier({ secret: receiverSecret }))
+receiver.use(ILP3.transfersOverHttp())
+receiver.use(ILP3.PSK.receiver({ secret: receiverSecret }))
 receiver.use(async (ctx) => {
   const transfer = ctx.state.transfer
   console.log(`receiver got payment for ${transfer.amount} with message:`, transfer.data.toString('utf8'))
@@ -28,7 +32,10 @@ const connectorMacaroon = base64url(Macaroon.newMacaroon({
   rootKey: receiverSecret
 }).exportBinary())
 const connectorSecret = crypto.randomBytes(32)
-const connector = ILP3.createConnector({
+const connector = new Koa()
+connector.use(ILP3.macaroonVerifier({ secret: connectorSecret }))
+connector.use(ILP3.transfersOverHttp())
+connector.use(ILP3.connector({
   routes: {
     'test.sender': {
       currency: 'EUR',
@@ -41,7 +48,7 @@ const connector = ILP3.createConnector({
     }
   },
   secret: connectorSecret
-})
+}))
 connector.listen(3000)
 
 const senderMacaroon = base64url(Macaroon.newMacaroon({
@@ -50,8 +57,6 @@ const senderMacaroon = base64url(Macaroon.newMacaroon({
 }).exportBinary())
 
 async function main () {
-  await connector.connect()
-
   const start = Date.now()
   const { fulfillment, data } = await ILP3.PSK.send({
     connector: `http://${senderMacaroon}@localhost:3000`,

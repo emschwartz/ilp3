@@ -3,7 +3,6 @@
 const assert = require('assert')
 const crypto = require('crypto')
 const ILP3 = require('./ilp3')
-const Router = require('koa-router')
 const Debug = require('debug')
 
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm'
@@ -62,7 +61,7 @@ async function send ({ connector, sharedSecret, transfer }) {
   }
 }
 
-function receiverMiddleware ({ secret }) {
+function receiver ({ secret }) {
   const debug = Debug('ilp3-psk:receiver')
   const key = hmac(secret, PSK_FULFILLMENT_STRING)
   assert(secret, 'secret is required')
@@ -99,22 +98,6 @@ function receiverMiddleware ({ secret }) {
     }
   }
   return receiverMiddleware
-}
-
-function createReceiver (opts) {
-  if (!opts) {
-    opts = {}
-  }
-  assert(opts.secret, 'secret is required')
-  assert(Buffer.from(opts.secret, 'base64').length === 32, 'secret must be 32 bytes')
-  const path = opts.path || '*'
-  const receiver = ILP3.createReceiver(opts)
-  const router = new Router()
-  router.post(path, receiverMiddleware({
-    secret: opts.secret
-  }))
-  receiver.use(router.routes())
-  return receiver
 }
 
 function getNonce () {
@@ -164,5 +147,4 @@ function decrypt (secret, buffer) {
 }
 
 exports.send = send
-exports.receiverMiddleware = receiverMiddleware
-exports.createReceiver = createReceiver
+exports.receiver = receiver
