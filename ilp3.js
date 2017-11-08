@@ -7,6 +7,7 @@ const Koa = require('koa')
 const getRawBody = require('raw-body')
 const Debug = require('debug')
 const Macaroon = require('macaroon')
+const Big = require('big.js')
 
 const BODY_SIZE_LIMIT = '1mb'
 const MACAROON_EXPIRY_TIME = 2000
@@ -83,7 +84,7 @@ function addTimeLimitIfMacaroon (token, expiry) {
 }
 
 // TODO should this be part of ILP3 or an extension?
-function macaroonVerifier ({ secret }) {
+function macaroonAuthenticator ({ secret }) {
   const debug = Debug('ilp3-macaroon:verifier')
   assert(secret, 'secret is required')
   assert(Buffer.from(secret, 'base64').length >= 32, 'secret must be at least 32 bytes')
@@ -94,18 +95,25 @@ function macaroonVerifier ({ secret }) {
       const macaroon = Macaroon.importMacaroon(encoded)
       const account = Buffer.from(macaroon.identifier).toString('utf8')
       debug('macaroon is for account:', account)
+      let minBalance = null
       macaroon.verify(secret, (caveat) => {
         if (caveat.startsWith('time < ')) {
           const expiry = Date.parse(caveat.replace('time < ', ''))
           if (Date.now() >= expiry) {
             throw new Error('macaroon is expired')
           }
+        } else if (caveat.startsWith('minBalance ')) {
+          minBalance = Big(caveat.replace('minBalance ', ''))
         } else {
           throw new Error('unsupported caveat')
         }
       })
       debug('macaroon passed validation')
-      ctx.state.account = account
+      if (!ctx.state.account) {
+        ctx.state.account = {}
+      }
+      ctx.state.account.prefix = account
+      ctx.state.account.minBalance = minBalance
     } catch (err) {
       debug('invalid macaroon', err)
       return ctx.throw(401, 'invalid macaroon')
@@ -155,6 +163,51 @@ function transfersOverHttp (opts) {
   }
 }
 
+// TODO increase balance on outgoing payment
+function inMemoryBalanceTracker (opts) {
+  const debug = Debug('ilp3-balance-tracker')
+  if (!opts) {
+    opts = {}
+  }
+  const defaultMinBalance = Big(opts.defaultMinBalance || 0)
+  const balances = {}
+
+  return async function (ctx, next) {
+    const account = ctx.state.account
+    const transfer = ctx.state.transfer
+    if (!account) {
+      debug('cannot use inMemoryBalanceTracker without middleware that sets ctx.state.account')
+      return ctx.throw(500, new Error('no account record attached to context'))
+    }
+    if (!transfer) {
+      debug('cannot use inMemoryBalanceTracker without middleware that sets ctx.state.transfer')
+      return ctx.throw(500, new Error('no transfer attached to context'))
+    }
+
+    if (!balances[account.prefix]) {
+      balances[account.prefix] = Big(0)
+    }
+
+    const newBalance = balances[account.prefix].minus(transfer.amount)
+    const minBalance = account.minBalance || defaultMinBalance
+    if (newBalance.lt(minBalance)) {
+      debug(`transfer would put account under minimum balance. account: ${account.prefix}, current balance: ${balances[account.prefix]}, minimum balance: ${minBalance}, transfer amount: ${transfer.amount}`)
+      return ctx.throw(403, new Error('transfer would put account under minimum balance'))
+    } else {
+      balances[account.prefix] = newBalance
+    }
+
+    // Roll back the balance change if the transfer is rejected
+    try {
+      await next()
+    } catch (err) {
+      balances[account.prefix] = balances[account.prefix].plus(transfer.amount)
+      throw err
+    }
+  }
+}
+
 exports.send = send
 exports.transfersOverHttp = transfersOverHttp
-exports.macaroonVerifier = macaroonVerifier
+exports.macaroonAuthenticator = macaroonAuthenticator
+exports.inMemoryBalanceTracker = inMemoryBalanceTracker

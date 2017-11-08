@@ -32,7 +32,7 @@ function connector (opts) {
       await connectedPromise
     }
 
-    const from = ctx.state.account
+    const from = ctx.state.account.prefix
     if (!routes[from]) {
       debug('no route available for account:', from)
       return ctx.throw(404, new Error('no route from: ' + from))
