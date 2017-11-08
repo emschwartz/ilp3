@@ -15,6 +15,8 @@ const AUTH_TAG_LENGTH = 16
 // transfer should have all fields except condition
 async function send ({ connector, sharedSecret, transfer }) {
   const debug = Debug('ilp3-psk:send')
+  assert(sharedSecret, 'sharedSecret is required')
+  assert(Buffer.from(sharedSecret, 'base64').length >= 32, 'sharedSecret must be at least 32 bytes')
   debug('sending transfer to connector:', connector, transfer)
 
   let userData
@@ -37,25 +39,41 @@ async function send ({ connector, sharedSecret, transfer }) {
     data,
     condition
   })
-  const result = await ILP3.send({
-    connector,
-    transfer: pskTransfer
-  })
+  let result
+  try {
+    result = await ILP3.send({
+      connector,
+      transfer: pskTransfer
+    })
+  } catch (err) {
+    debug('error sending transfer', err)
+    throw err
+  }
+  let responseData = null
+  try {
+    if (result.data) {
+      responseData = decrypt(sharedSecret, result.data)
+    }
+  } catch (err) {
+    debug('error decrypting response data', err)
+  }
   return {
     fulfillment: result.fulfillment,
-    // TODO handle decryption errors
-    data: decrypt(sharedSecret, result.data)
+    data: responseData
   }
 }
 
 function receiverMiddleware ({ secret }) {
   const debug = Debug('ilp3-psk:receiver')
   const key = hmac(secret, PSK_FULFILLMENT_STRING)
+  assert(secret, 'secret is required')
+  assert(Buffer.from(secret, 'base64').length >= 32, 'secret must be at least 32 bytes')
 
   async function receiverMiddleware (ctx, next) {
     if (!ctx.state.transfer.data) {
       return ctx.throw(400, 'unable to regenerate fulfillment')
     }
+    debug('attempting to regenerate fulfillment from data:', ctx.state.transfer.data)
     const data = ctx.state.transfer.data || ''
     const fulfillment = hmac(key, data)
     const condition = hash(fulfillment).toString('base64')
@@ -90,7 +108,7 @@ function createReceiver (opts) {
   }
   assert(opts.secret, 'secret is required')
   assert(Buffer.from(opts.secret, 'base64').length === 32, 'secret must be 32 bytes')
-  const path = opts.path || '/'
+  const path = opts.path || '*'
   const receiver = ILP3.createReceiver(opts)
   const router = new Router()
   router.post(path, receiverMiddleware({
