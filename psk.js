@@ -73,7 +73,7 @@ function receiverMiddleware ({ secret }) {
     if (!ctx.state.transfer.data) {
       return ctx.throw(400, 'unable to regenerate fulfillment')
     }
-    debug('attempting to regenerate fulfillment from data:', ctx.state.transfer.data)
+    debug('attempting to regenerate fulfillment from data')
     const data = ctx.state.transfer.data || ''
     const fulfillment = hmac(key, data)
     const condition = hash(fulfillment).toString('base64')

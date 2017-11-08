@@ -10,13 +10,13 @@ const Macaroon = require('macaroon')
 
 const BODY_SIZE_LIMIT = '1mb'
 
-async function send ({ connector, transfer }) {
+async function send ({ connector, transfer, streamData = false }) {
   // TODO recognize if connector has a macaroon in the URL and caveat it (for a short expiry) if so
   const debug = Debug('ilp3:send')
-  if (Buffer.isBuffer(transfer.data)) {
-    debug('sending transfer:', Object.assign({}, transfer, { data: transfer.data.toString('base64') }))
-  } else {
+  if (streamData) {
     debug('sending transfer:', Object.assign({}, transfer, { data: '[Stream]' }))
+  } else {
+    debug('sending transfer:', Object.assign({}, transfer, { data: transfer.data.toString('base64') }))
   }
   const headers = Object.assign({
     'ILP-Amount': transfer.amount,
@@ -44,8 +44,12 @@ async function send ({ connector, transfer }) {
 
   const fulfillment = response.headers.get('ilp-fulfillment')
   const contentType = response.headers.get('content-type')
-  const data = await response.buffer()
-  debug(`got fulfillment: ${fulfillment} and data:`, data.toString('base64'))
+  const data = (streamData ? response.body : await response.buffer())
+  if (streamData) {
+    debug(`got fulfillment: ${fulfillment} and data: [Stream]`)
+  } else {
+    debug(`got fulfillment: ${fulfillment} and data:`, data.toString('base64'))
+  }
   return {
     fulfillment,
     data
@@ -77,14 +81,14 @@ function macaroonVerifier ({ secret }) {
   }
 }
 
-function receiverMiddleware ({ streamData }) {
+function receiverMiddleware ({ streamData = false }) {
   return async (ctx, next) => {
     const debug = Debug('ilp3:receiver')
     const transfer = await getTransferFromRequest(ctx, streamData)
     if (streamData) {
       debug('got transfer:', Object.assign({}, transfer, { data: '[Stream]' }))
     } else {
-      debug('got transfer:', transfer)
+      debug('got transfer:', Object.assign({}, transfer, { data: transfer.data.toString('base64') }))
     }
     // TODO validate transfer details
     ctx.state.transfer = transfer

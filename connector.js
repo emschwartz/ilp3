@@ -77,7 +77,8 @@ function createConnector (opts) {
       debug('forwarding transfer to next connector:', nextHop.connector, Object.assign({}, outgoingTransfer, { data: '[Stream]' }))
       const result = await ILP3.send({
         connector: nextHop.connector,
-        transfer: outgoingTransfer
+        transfer: outgoingTransfer,
+        streamData: true
       })
       debug('responding to sender with fulfillment')
       ctx.state.fulfillment = result.fulfillment
