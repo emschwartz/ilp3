@@ -17,7 +17,6 @@ async function send ({ connector, sharedSecret, transfer }) {
   const debug = Debug('ilp3-psk:send')
   assert(sharedSecret, 'sharedSecret is required')
   assert(Buffer.from(sharedSecret, 'base64').length >= 32, 'sharedSecret must be at least 32 bytes')
-  debug('sending transfer to connector:', connector, transfer)
 
   let userData
   if (Buffer.isBuffer(transfer.data)) {

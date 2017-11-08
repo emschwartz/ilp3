@@ -3,7 +3,14 @@
 const ILP3 = require('.')
 const crypto = require('crypto')
 const Macaroon = require('macaroon')
-const base64url = require('base64url')
+
+function base64url (buffer) {
+  return Buffer.from(buffer, 'base64')
+    .toString('base64')
+    .replace(/=+$/, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+}
 
 const receiverSecret = crypto.randomBytes(32)
 const receiver = ILP3.PSK.createReceiver({ secret: receiverSecret })
@@ -28,7 +35,7 @@ const connector = ILP3.createConnector({
       scale: 6
     },
     'test.receiver': {
-      connector: 'http://localhost:4000/' + connectorMacaroon,
+      connector: `http://${connectorMacaroon}@localhost:4000`,
       currency: 'USD',
       scale: 4
     }
@@ -47,7 +54,7 @@ async function main () {
 
   const start = Date.now()
   const { fulfillment, data } = await ILP3.PSK.send({
-    connector: 'http://localhost:3000/' + senderMacaroon,
+    connector: `http://${senderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
     transfer: {
       destination: 'test.receiver',

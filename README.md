@@ -10,7 +10,9 @@ See [./example.js](./example.js) for how to use it.
 
 - [x] Connector exchange rates
 - [x] Connector streams data from incoming to outgoing request
-- [ ] Sender automatically caveats macaroon token
+- [x] Send authorization in HTTP header
+- [x] Sender automatically caveats macaroon token
+- [ ] Connector keeps balances for multiple senders
 - [ ] Quoting
 - [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)
 - [ ] Payment channel support (minimal plugin architecture?)

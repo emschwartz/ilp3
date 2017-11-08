@@ -1,6 +1,7 @@
 'use strict'
 
 const assert = require('assert')
+const url = require('url')
 const fetch = require('node-fetch')
 const Koa = require('koa')
 const Router = require('koa-router')
@@ -9,6 +10,7 @@ const Debug = require('debug')
 const Macaroon = require('macaroon')
 
 const BODY_SIZE_LIMIT = '1mb'
+const MACAROON_EXPIRY_TIME = 2000
 
 async function send ({ connector, transfer, streamData = false }) {
   // TODO recognize if connector has a macaroon in the URL and caveat it (for a short expiry) if so
@@ -26,9 +28,19 @@ async function send ({ connector, transfer, streamData = false }) {
     'User-Agent': '',
     'Content-Type': 'application/octet-stream'
   }, transfer.additionalHeaders || {})
+
+  // Parse authentication from URI
+  const parsedUri = new url.URL(connector)
+  const auth = (parsedUri.password ? parsedUri.username + ':' + parsedUri.password : parsedUri.username)
+  const authToken = addTimeLimitIfMacaroon(auth, Date.now() + MACAROON_EXPIRY_TIME)
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+  const uri = url.format(parsedUri, { auth: false })
+
   let response
   try {
-    response = await fetch(connector, {
+    response = await fetch(uri, {
       method: 'POST',
       headers,
       body: transfer.data,
@@ -56,20 +68,43 @@ async function send ({ connector, transfer, streamData = false }) {
   }
 }
 
+function addTimeLimitIfMacaroon (token, expiry) {
+  const debug = Debug('ilp3-send:macaroon')
+  let macaroon
+  try {
+    macaroon = Macaroon.importMacaroon(token)
+    const expiryTimestamp = new Date(expiry).toISOString()
+    macaroon.addFirstPartyCaveat(`time < ${expiryTimestamp}`)
+    debug('added caveat to macaroon so it expires at:', expiryTimestamp)
+    return Buffer.from(macaroon.exportBinary()).toString('base64')
+  } catch (err) {
+    debug('token is not a macaroon, using plain token')
+    // token is not a macaroon
+    return token
+  }
+}
+
 // TODO should this be part of ILP3 or an extension?
 function macaroonVerifier ({ secret }) {
   const debug = Debug('ilp3-macaroon:verifier')
   assert(secret, 'secret is required')
   assert(Buffer.from(secret, 'base64').length >= 32, 'secret must be at least 32 bytes')
   return async (ctx, next) => {
-    const encoded = ctx.request.path.slice(1)
-    debug('got macaroon', encoded)
     try {
+      const encoded = ctx.request.headers.authorization.replace(/^bearer /i, '')
+      debug('got macaroon', encoded)
       const macaroon = Macaroon.importMacaroon(encoded)
       const account = Buffer.from(macaroon.identifier).toString('utf8')
       debug('macaroon is for account:', account)
       macaroon.verify(secret, (caveat) => {
-        throw new Error('unsupported caveat')
+        if (caveat.startsWith('time < ')) {
+          const expiry = Date.parse(caveat.replace('time < ', ''))
+          if (Date.now() >= expiry) {
+            throw new Error('macaroon is expired')
+          }
+        } else {
+          throw new Error('unsupported caveat')
+        }
       })
       debug('macaroon passed validation')
       ctx.state.account = account

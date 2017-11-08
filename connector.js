@@ -121,7 +121,10 @@ async function _getRatesFromFixerIo () {
   const rates = {
     'EUR': Big(1)
   }
-  const result = await (await fetch(FIXERIO_API)).json()
+  debug('getting rates from fixer.io')
+  const response = await fetch(FIXERIO_API)
+  debug('got rates from fixer.io')
+  const result = await response.json()
   for (let currency in result.rates) {
     rates[currency] = Big(result.rates[currency])
   }
@@ -130,7 +133,10 @@ async function _getRatesFromFixerIo () {
 
 async function _getRatesFromCoinMarketCap () {
   const rates = {}
-  const results = await (await fetch(COINMARKETCAP_API)).json()
+  debug('getting rates from coinmarketcap')
+  const response = await fetch(COINMARKETCAP_API)
+  const results = await response.json()
+  debug('got rates from coinmarketcap')
   for (let result of results) {
     rates[result.symbol] = Big(result.price_eur)
   }
