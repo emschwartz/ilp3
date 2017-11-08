@@ -15,6 +15,7 @@ function createConnector (opts) {
   const minMessageWindow = opts.minMessageWindow || 1000
   const spread = opts.spread || 0
   const secret = opts.secret
+  let connected = false
   let rates
 
   const connector = ILP3.createReceiver({
@@ -22,12 +23,17 @@ function createConnector (opts) {
     // This will make transfer.data be a stream, which node-fetch will pipe to the destination
     streamData: true
   })
+
+  connector.connect = async () => {
+    rates = await getExchangeRates()
+    connected = true
+    debug('connected')
+  }
+
   const router = new Router()
   router.post(path, async (ctx, next) => {
-    // TODO don't make this call in the flow of the payment
-    if (!rates) {
-      const results = await Promise.all([_getRatesFromFixerIo(), _getRatesFromCoinMarketCap()])
-      rates = Object.assign({}, results[0], results[1])
+    if (!connected) {
+      return ctx.throw(500, 'Connector must be connected first before it can forward payments')
     }
 
     const from = ctx.state.account
@@ -102,6 +108,12 @@ function getRate ({ routes, rates, from, to, spread = 0 }) {
   const scaledRate = exchangeRate.times(Big(10).pow(toScale - fromScale))
   const markedUpRate = scaledRate.times(Big(1).minus(spread))
   return markedUpRate
+}
+
+async function getExchangeRates () {
+  debug('getting exchange rates from fixer.io and coinmarketcap')
+  const results = await Promise.all([_getRatesFromFixerIo(), _getRatesFromCoinMarketCap()])
+  return Object.assign({}, results[0], results[1])
 }
 
 async function _getRatesFromFixerIo () {

@@ -43,16 +43,8 @@ const senderMacaroon = base64url(Macaroon.newMacaroon({
 }).exportBinary())
 
 async function main () {
-  await ILP3.PSK.send({
-    connector: 'http://localhost:3000/' + senderMacaroon,
-    sharedSecret: receiverSecret,
-    transfer: {
-      destination: 'test.receiver',
-      amount: '1000',
-      expiry: new Date(Date.now() + 10000).toISOString(),
-      data: 'hello there!'
-    }
-  })
+  await connector.connect()
+
   const start = Date.now()
   const { fulfillment, data } = await ILP3.PSK.send({
     connector: 'http://localhost:3000/' + senderMacaroon,
