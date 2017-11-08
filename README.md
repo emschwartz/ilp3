@@ -8,6 +8,6 @@ See [./example.js](./example.js) for how to use it.
 
 ## TODOs
 
-- [ ] Connector exchange rates
+- [x] Connector exchange rates
 - [ ] Quoting
 - [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)

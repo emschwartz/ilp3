@@ -6,7 +6,8 @@ const crypto = require('crypto')
 const secret = crypto.randomBytes(32)
 const receiver = ILP3.PSK.createReceiver({ secret })
 receiver.use(async (ctx) => {
-  console.log('receiver got message:', ctx.state.transfer.data.toString('utf8'))
+  const transfer = ctx.state.transfer
+  console.log(`receiver got payment for ${transfer.amount} with message:`, transfer.data.toString('utf8'))
   if (ctx.state.fulfillment) {
     ctx.state.data = 'thanks for the money!'
   }
@@ -14,8 +15,16 @@ receiver.use(async (ctx) => {
 receiver.listen(4000)
 
 const connector = ILP3.createConnector({
-  routingTable: {
-    'test.': 'http://localhost:4000'
+  routes: {
+    'test.sender': {
+      currency: 'EUR',
+      scale: 6
+    },
+    'test.receiver': {
+      connector: 'http://localhost:4000',
+      currency: 'USD',
+      scale: 4
+    }
   }
 })
 connector.listen(3000)
@@ -27,9 +36,12 @@ async function main () {
     sharedSecret: secret,
     transfer: {
       destination: 'test.receiver',
-      amount: '10',
+      amount: '1000',
       expiry: new Date(Date.now() + 10000).toISOString(),
-      data: 'hello there!'
+      data: 'hello there!',
+      additionalHeaders: {
+        authorization: 'test.sender'
+      }
     }
   })
   console.log(`sender got fulfillment: ${fulfillment}, data: ${data.toString('utf8')} in ${Date.now() - start}ms`)

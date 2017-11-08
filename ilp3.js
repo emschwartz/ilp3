@@ -68,44 +68,6 @@ function createReceiver (opts) {
   return receiver
 }
 
-function createConnector (opts) {
-  const debug = Debug('ilp3-connector')
-  const routingTable = opts.routingTable
-  const path = opts.path || '/'
-
-  const connector = createReceiver()
-  const router = new Router()
-  router.post(path, async (ctx, next) => {
-    const transfer = ctx.state.transfer
-    let longestPrefix = null
-    for (let prefix in routingTable) {
-      if (transfer.destination.startsWith(prefix) && (!longestPrefix || prefix.length > longestPrefix.length)) {
-        longestPrefix = prefix
-      }
-    }
-    if (!longestPrefix) {
-      debug('no route found for destination:', transfer.destination)
-      return ctx.throw(404, 'no route found')
-    }
-    const nextConnector = routingTable[longestPrefix]
-    // TODO apply exchange rate
-    try {
-      debug('forwarding transfer to next connector:', nextConnector, transfer)
-      const result = await send({
-        connector: nextConnector,
-        transfer
-      })
-      debug('responding to sender with fulfillment')
-      ctx.state.fulfillment = result.fulfillment
-      ctx.state.data = result.data
-    } catch (err) {
-      debug('error forwarding payment to: ' + nextConnector, err)
-      return ctx.throw(err)
-    }
-  })
-  connector.use(router.routes())
-  return connector
-}
 
 async function getTransferFromRequest (ctx) {
   const body = await getRawBody(ctx.req, {
@@ -122,4 +84,3 @@ async function getTransferFromRequest (ctx) {
 
 exports.send = send
 exports.createReceiver = createReceiver
-exports.createConnector = createConnector
