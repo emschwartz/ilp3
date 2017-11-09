@@ -14,17 +14,17 @@ function base64url (buffer) {
 }
 
 const receiverSecret = crypto.randomBytes(32)
-const receiver = new Koa()
-receiver.use(ILP3.macaroonAuthenticator({ secret: receiverSecret }))
-receiver.use(ILP3.transfersOverHttp())
-receiver.use(ILP3.PSK.receiver({ secret: receiverSecret }))
-receiver.use(async (ctx) => {
-  const transfer = ctx.state.transfer
-  console.log(`receiver got payment for ${transfer.amount} with message:`, transfer.data.toString('utf8'))
-  if (ctx.state.fulfillment) {
-    ctx.state.data = 'thanks for the money!'
-  }
-})
+const receiver = new ILP3.ILP3()
+  .use(ILP3.macaroonAuthenticator({ secret: receiverSecret }))
+  .use(ILP3.httpParser())
+  .use(ILP3.PSK.receiver({ secret: receiverSecret }))
+  .use(async (ctx) => {
+    const transfer = ctx.transfer
+    console.log(`receiver got payment for ${transfer.amount} with message:`, transfer.data.toString('utf8'))
+    if (ctx.fulfillment) {
+      ctx.data = 'thanks for the money!'
+    }
+  })
 receiver.listen(4000)
 
 const connectorMacaroon = Macaroon.newMacaroon({
@@ -33,24 +33,25 @@ const connectorMacaroon = Macaroon.newMacaroon({
 })
 const encodedConnectorMacaroon = base64url(connectorMacaroon.exportBinary())
 const connectorSecret = crypto.randomBytes(32)
-const connector = new Koa()
-connector.use(ILP3.macaroonAuthenticator({ secret: connectorSecret }))
-connector.use(ILP3.transfersOverHttp())
-connector.use(ILP3.inMemoryBalanceTracker())
-connector.use(ILP3.connector({
-  routes: {
-    'test.sender': {
-      currency: 'EUR',
-      scale: 6
+const connector = new ILP3.ILP3()
+  .use(ILP3.macaroonAuthenticator({ secret: connectorSecret }))
+  .use(ILP3.httpParser({ streamData: true }))
+  .use(ILP3.inMemoryBalanceTracker())
+  .use(ILP3.connector({
+    routes: {
+      'test.sender': {
+        currency: 'EUR',
+        scale: 6
+      },
+      'test.receiver': {
+        connector: `http://${encodedConnectorMacaroon}@localhost:4000`,
+        currency: 'USD',
+        scale: 4
+      }
     },
-    'test.receiver': {
-      connector: `http://${encodedConnectorMacaroon}@localhost:4000`,
-      currency: 'USD',
-      scale: 4
-    }
-  },
-  secret: connectorSecret
-}))
+    secret: connectorSecret
+  }))
+  .use(ILP3.httpSender())
 connector.listen(3000)
 
 const senderMacaroon = Macaroon.newMacaroon({
@@ -59,10 +60,13 @@ const senderMacaroon = Macaroon.newMacaroon({
 })
 senderMacaroon.addFirstPartyCaveat('minBalance -1000')
 const encodedSenderMacaroon = base64url(senderMacaroon.exportBinary())
+const sender = new ILP3.ILP3()
+  .use(ILP3.PSK.sender())
+  .use(ILP3.httpSender())
 
 async function main () {
   const start = Date.now()
-  const { fulfillment, data } = await ILP3.PSK.send({
+  const { fulfillment, data } = await sender.send({
     connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
     transfer: {
@@ -72,7 +76,7 @@ async function main () {
       data: 'hello there!'
     }
   })
-  console.log(`sender got fulfillment: ${fulfillment}, data: ${data && data.toString('utf8')} in ${Date.now() - start}ms`)
+  console.log(`sender got fulfillment: ${fulfillment.toString('base64')}, data: ${data && data.toString('utf8')} in ${Date.now() - start}ms`)
 }
 
 main().catch((err) => console.log(err))

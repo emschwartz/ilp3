@@ -38,7 +38,7 @@ function connector (opts) {
       return ctx.throw(404, new Error('no route from: ' + from))
     }
 
-    const transfer = ctx.state.transfer
+    const transfer = ctx.transfer
 
     let longestPrefix = null
     for (let prefix in routes) {
@@ -70,16 +70,17 @@ function connector (opts) {
       data: transfer.data
     }
 
+    // Update the transfer and pass control to the next handler
+    ctx.transfer = outgoingTransfer
+    ctx.connector = nextHop.connector
+    debug('forwarding transfer to next connector:', nextHop.connector, Object.assign({}, outgoingTransfer, { data: '[Stream]' }))
     try {
-      debug('forwarding transfer to next connector:', nextHop.connector, Object.assign({}, outgoingTransfer, { data: '[Stream]' }))
-      const result = await ILP3.send({
-        connector: nextHop.connector,
-        transfer: outgoingTransfer,
-        streamData: true
-      })
-      debug('responding to sender with fulfillment')
-      ctx.state.fulfillment = result.fulfillment
-      ctx.state.data = result.data
+      // If the outgoing transfer works, the fulfillment and data will be set
+      // on the ctx and be picked up by the function that handled the incoming transfer initially
+      await next()
+      if (ctx.fulfillment) {
+        debug(`responding to the sender with the fulfillment: ${ctx.fulfillment}`)
+      }
     } catch (err) {
       debug('error forwarding payment to: ' + nextHop.connector, err)
       return ctx.throw(err)

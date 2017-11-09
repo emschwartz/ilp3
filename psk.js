@@ -12,52 +12,60 @@ const NONCE_LENGTH = 18
 const AUTH_TAG_LENGTH = 16
 
 // transfer should have all fields except condition
-async function send ({ connector, sharedSecret, transfer }) {
-  const debug = Debug('ilp3-psk:send')
-  assert(sharedSecret, 'sharedSecret is required')
-  assert(Buffer.from(sharedSecret, 'base64').length >= 32, 'sharedSecret must be at least 32 bytes')
+function sender () {
+  return async function (ctx, next) {
+    const debug = Debug('ilp3-psk:send')
+    const sharedSecret = ctx.sharedSecret
+    const transfer = ctx.transfer
+    assert(sharedSecret, 'sharedSecret is required')
+    assert(Buffer.from(sharedSecret, 'base64').length >= 32, 'sharedSecret must be at least 32 bytes')
 
-  let userData
-  if (Buffer.isBuffer(transfer.data)) {
-    userData = transfer.data
-  } else if (typeof transfer.data === 'object') {
-    userData = Buffer.from(JSON.stringify(transfer.data), 'utf8')
-  } else if (typeof transfer.data === 'string') {
-    userData = Buffer.from(transfer.data, 'utf8')
-  } else {
-    userData = Buffer.alloc(0)
-  }
-  const data = encrypt(sharedSecret, userData)
-
-  const key = hmac(sharedSecret, PSK_FULFILLMENT_STRING)
-  const fulfillment = hmac(key, data)
-  const condition = hash(fulfillment).toString('base64')
-  debug('generated condition:', condition)
-  const pskTransfer = Object.assign({}, transfer, {
-    data,
-    condition
-  })
-  let result
-  try {
-    result = await ILP3.send({
-      connector,
-      transfer: pskTransfer
-    })
-  } catch (err) {
-    debug('error sending transfer', err)
-    throw err
-  }
-  let responseData = null
-  try {
-    if (result.data) {
-      responseData = decrypt(sharedSecret, result.data)
+    // Encrypt data
+    let userData
+    if (Buffer.isBuffer(transfer.data)) {
+      userData = transfer.data
+    } else if (typeof transfer.data === 'object') {
+      userData = Buffer.from(JSON.stringify(transfer.data), 'utf8')
+    } else if (typeof transfer.data === 'string') {
+      userData = Buffer.from(transfer.data, 'utf8')
+    } else {
+      userData = Buffer.alloc(0)
     }
-  } catch (err) {
-    debug('error decrypting response data', err)
-  }
-  return {
-    fulfillment: result.fulfillment,
-    data: responseData
+    const data = encrypt(sharedSecret, userData)
+
+    // Generate condition using shared secret and data
+    // Note that the encrypt call automatically adds a nonce to the data,
+    // which makes the condition unique
+    const key = hmac(sharedSecret, PSK_FULFILLMENT_STRING)
+    const fulfillment = hmac(key, data)
+    const condition = hash(fulfillment).toString('base64')
+    debug('generated condition:', condition)
+
+    // Update the context and pass control over to the next handler
+    ctx.transfer = Object.assign({}, transfer, {
+      data,
+      condition
+    })
+    delete ctx.sharedSecret
+
+    try {
+      await next()
+    } catch (err) {
+      debug('error sending transfer', err)
+      throw err
+    }
+
+    // Decrypt the repsponse data if there was any
+    let decryptedData = null
+    try {
+      if (ctx.data) {
+        decryptedData = decrypt(sharedSecret, ctx.data)
+      }
+    } catch (err) {
+      debug('error decrypting response data', err)
+    }
+    ctx.data = decryptedData
+    ctx.fulfillment = fulfillment
   }
 }
 
@@ -67,16 +75,17 @@ function receiver ({ secret }) {
   assert(secret, 'secret is required')
   assert(Buffer.from(secret, 'base64').length >= 32, 'secret must be at least 32 bytes')
 
-  async function receiverMiddleware (ctx, next) {
-    if (!ctx.state.transfer.data) {
+  return async function (ctx, next) {
+    const transfer = ctx.transfer
+    if (!transfer.data) {
       return ctx.throw(400, 'unable to regenerate fulfillment')
     }
     debug('attempting to regenerate fulfillment from data')
-    const data = ctx.state.transfer.data || ''
+    const data = transfer.data || ''
     const fulfillment = hmac(key, data)
     const condition = hash(fulfillment).toString('base64')
-    debug(`regenerated fulfillment: ${fulfillment.toString('base64')} and condition ${condition}, original condition: ${ctx.state.transfer.condition}`)
-    if (condition !== ctx.state.transfer.condition) {
+    debug(`regenerated fulfillment: ${fulfillment.toString('base64')} and condition ${condition}, original condition: ${transfer.condition}`)
+    if (condition !== transfer.condition) {
       return ctx.throw(400, 'unable to regenerate fulfillment')
     }
     let decryptedData
@@ -87,17 +96,16 @@ function receiver ({ secret }) {
       return ctx.throw(400, 'unable to decrypt data')
     }
 
-    ctx.state.fulfillment = fulfillment.toString('base64')
-    ctx.state.transfer.data = decryptedData
+    ctx.fulfillment = fulfillment.toString('base64')
+    ctx.transfer.data = decryptedData
 
     await next()
 
     // Encrypt response data
-    if (ctx.state.data) {
-      ctx.state.data = encrypt(secret, ctx.state.data)
+    if (ctx.data) {
+      ctx.data = encrypt(secret, ctx.data)
     }
   }
-  return receiverMiddleware
 }
 
 function getNonce () {
@@ -146,5 +154,5 @@ function decrypt (secret, buffer) {
   ])
 }
 
-exports.send = send
+exports.sender = sender
 exports.receiver = receiver

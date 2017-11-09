@@ -8,67 +8,95 @@ const getRawBody = require('raw-body')
 const Debug = require('debug')
 const Macaroon = require('macaroon')
 const Big = require('big.js')
+const compose = require('koa-compose')
 
 const BODY_SIZE_LIMIT = '1mb'
 const MACAROON_EXPIRY_TIME = 2000
 
-async function send ({ connector, transfer, streamData = false }) {
-  const debug = Debug('ilp3:send')
-  if (streamData) {
-    debug('sending transfer:', Object.assign({}, transfer, { data: '[Stream]' }))
-  } else {
-    debug('sending transfer:', Object.assign({}, transfer, { data: transfer.data.toString('base64') }))
-  }
-  const headers = Object.assign({
-    'ILP-Amount': transfer.amount,
-    'ILP-Expiry': transfer.expiry,
-    'ILP-Condition': transfer.condition,
-    'ILP-Destination': transfer.destination,
-    'User-Agent': '',
-    'Content-Type': 'application/octet-stream'
-  }, transfer.additionalHeaders || {})
-
-  // Parse authentication from URI
-  const parsedUri = new url.URL(connector)
-  const auth = (parsedUri.password ? parsedUri.username + ':' + parsedUri.password : parsedUri.username)
-  const authToken = addTimeLimitIfMacaroon(auth, Date.now() + MACAROON_EXPIRY_TIME)
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`
-  }
-  const uri = url.format(parsedUri, { auth: false })
-
-  let response
-  try {
-    response = await fetch(uri, {
-      method: 'POST',
-      headers,
-      body: transfer.data,
-      compress: false
-    })
-  } catch (err) {
-    debug('error sending transfer', err)
-    throw err
-  }
-  if (!response.ok) {
-    throw new Error(`Error sending transfer: ${response.status} ${response.statusText}`)
+class ILP3 extends Koa {
+  constructor () {
+    super()
   }
 
-  const fulfillment = response.headers.get('ilp-fulfillment')
-  const contentType = response.headers.get('content-type')
-  const data = (streamData ? response.body : await response.buffer())
-  if (streamData) {
-    debug(`got fulfillment: ${fulfillment} and data: [Stream]`)
-  } else {
-    debug(`got fulfillment: ${fulfillment} and data:`, data.toString('base64'))
+  // Function to call the middleware without an incoming HTTP request
+  send (ctx, next) {
+    async function returnCtx (ctx, next) {
+      await next()
+      return ctx
+    }
+    const fn = compose([returnCtx].concat(this.middleware))
+    return fn(Object.assign({
+      app: this,
+      state: {},
+      respond: false
+    }, ctx), next)
   }
-  return {
-    fulfillment,
-    data
+}
+
+function httpSender (opts) {
+  if (!opts) {
+    opts = {}
+  }
+  const streamData = !!opts.streamData
+
+  return async function (ctx, next) {
+    const debug = Debug('ilp3:httpSender')
+
+    const transfer = ctx.transfer
+    const connector = ctx.connector
+
+    debug('sending transfer:', Object.assign({}, transfer, { data: (streamData ? '[Stream]' : transfer.data.toString('base64')) }))
+    const headers = Object.assign({
+      'ILP-Amount': transfer.amount,
+      'ILP-Expiry': transfer.expiry,
+      'ILP-Condition': transfer.condition,
+      'ILP-Destination': transfer.destination,
+      'User-Agent': '',
+      'Content-Type': 'application/octet-stream'
+    }, transfer.additionalHeaders || {})
+
+    // Parse authentication from URI
+    const parsedUri = new url.URL(connector)
+    const auth = (parsedUri.password ? parsedUri.username + ':' + parsedUri.password : parsedUri.username)
+    const authToken = addTimeLimitIfMacaroon(auth, Date.now() + MACAROON_EXPIRY_TIME)
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`
+    }
+    const uri = url.format(parsedUri, { auth: false })
+
+    let response
+    try {
+      response = await fetch(uri, {
+        method: 'POST',
+        headers,
+        body: transfer.data,
+        compress: false
+      })
+    } catch (err) {
+      debug('error sending transfer', err)
+      throw err
+    }
+    if (!response.ok) {
+      throw new Error(`Error sending transfer: ${response.status} ${response.statusText}`)
+    }
+
+    const fulfillment = response.headers.get('ilp-fulfillment')
+    const contentType = response.headers.get('content-type')
+    const data = (streamData ? response.body : await response.buffer())
+    if (streamData) {
+      debug(`got fulfillment: ${fulfillment} and data: [Stream]`)
+    } else {
+      debug(`got fulfillment: ${fulfillment} and data:`, data.toString('base64'))
+    }
+
+    ctx.fulfillment = fulfillment
+    ctx.data = data
+    return next()
   }
 }
 
 function addTimeLimitIfMacaroon (token, expiry) {
-  const debug = Debug('ilp3-send:macaroon')
+  const debug = Debug('ilp3:httpSender')
   let macaroon
   try {
     macaroon = Macaroon.importMacaroon(token)
@@ -122,7 +150,7 @@ function macaroonAuthenticator ({ secret }) {
   }
 }
 
-function transfersOverHttp (opts) {
+function httpParser (opts) {
   if (!opts) {
     opts = {}
   }
@@ -150,15 +178,15 @@ function transfersOverHttp (opts) {
       debug('got transfer:', Object.assign({}, transfer, { data: transfer.data.toString('base64') }))
     }
     // TODO validate transfer details
-    ctx.state.transfer = transfer
+    ctx.transfer = transfer
 
     await next()
 
-    if (ctx.state.fulfillment) {
+    if (ctx.fulfillment) {
       debug('responding to sender with fulfillment')
       ctx.status = 200
-      ctx.set('ILP-Fulfillment', ctx.state.fulfillment)
-      ctx.body = ctx.state.data
+      ctx.set('ILP-Fulfillment', ctx.fulfillment)
+      ctx.body = ctx.data
     }
   }
 }
@@ -174,7 +202,7 @@ function inMemoryBalanceTracker (opts) {
 
   return async function (ctx, next) {
     const account = ctx.state.account
-    const transfer = ctx.state.transfer
+    const transfer = ctx.transfer
     if (!account) {
       debug('cannot use inMemoryBalanceTracker without middleware that sets ctx.state.account')
       return ctx.throw(500, new Error('no account record attached to context'))
@@ -207,7 +235,8 @@ function inMemoryBalanceTracker (opts) {
   }
 }
 
-exports.send = send
-exports.transfersOverHttp = transfersOverHttp
+exports.ILP3 = ILP3
+exports.httpSender = httpSender
+exports.httpParser = httpParser
 exports.macaroonAuthenticator = macaroonAuthenticator
 exports.inMemoryBalanceTracker = inMemoryBalanceTracker
