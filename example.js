@@ -42,6 +42,7 @@ const connector = new ILP3()
     },
     secret: connectorSecret
   }))
+  .use(ILP3.middleware.macaroons.timeLimiter())
   .use(ILP3.middleware.http.client())
 connector.listen(3000)
 
@@ -53,6 +54,7 @@ senderMacaroon.addFirstPartyCaveat('minBalance -1000')
 const encodedSenderMacaroon = base64url(senderMacaroon.exportBinary())
 const sender = new ILP3()
   .use(ILP3.middleware.psk.sender())
+  .use(ILP3.middleware.macaroons.timeLimiter())
   .use(ILP3.middleware.http.client())
 
 async function main () {
