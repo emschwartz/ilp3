@@ -15,7 +15,6 @@
     "koa-compose": "^4.0.0",
     "macaroon": "^3.0.0",
     "node-fetch": "^1.7.3",
-    "raw-body": "^2.3.2",
-    "superagent": "^3.8.0"
+    "raw-body": "^2.3.2"
   }
 }
