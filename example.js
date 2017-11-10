@@ -49,6 +49,7 @@ const connector = new ILP3()
   }))
   .use(balanceTracker.outgoing())
   .use(ILP3.macaroons.timeLimiter())
+  .use(ILP3.fulfillments.validator())
   .use(ILP3.http.client({
     streamData: true,
     routes
@@ -64,6 +65,7 @@ const encodedSenderMacaroon = base64url(senderMacaroon.exportBinary())
 const sender = new ILP3()
   .use(ILP3.psk.sender())
   .use(ILP3.macaroons.timeLimiter())
+  .use(ILP3.fulfillments.validator())
   .use(ILP3.http.client())
 
 const sender2Macaroon = Macaroon.newMacaroon({
@@ -75,6 +77,7 @@ const encodedSender2Macaroon = base64url(sender2Macaroon.exportBinary())
 const sender2 = new ILP3()
   .use(ILP3.psk.sender())
   .use(ILP3.macaroons.timeLimiter())
+  .use(ILP3.fulfillments.validator())
   .use(ILP3.http.client())
 
 async function main () {
