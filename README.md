@@ -15,10 +15,14 @@ See [./example.js](./example.js) for how to use it.
 - [x] Unified middleware API for senders, receivers, and connectors
 - [x] Connector keeps balances for multiple senders (and adjusts balance on incoming and outgoing transfers)
 - [x] Connector uses ILP addresses to determine where transfers are going to / coming from
-- [ ] Quoting
+- [x] Quoting
 - [ ] Fragmented payments
-- [ ] Error handler that produces machine-readable error objects
-- [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)
 - [ ] Payment channel support
+- [ ] Error handler that produces machine-readable error objects
+- [ ] Auto-connect to connectors
+- [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)
 - [ ] Middleware that wraps a V1 Ledger Plugin
 - [ ] Bundle recommended set of middleware for senders, receivers, connectors
+- [ ] Store balances in DB
+- [ ] HTTP API on sending (PSK) client
+- [ ] Standard set of macaroon caveats

@@ -82,6 +82,17 @@ const sender2 = new ILP3()
 
 async function main () {
   const start = Date.now()
+  // Get a quote first
+  const { destinationAmount } = await sender.send({
+    connector: `http://${encodedSenderMacaroon}@localhost:3000`,
+    sharedSecret: receiverSecret,
+    quote: true,
+    transfer: {
+      destination: 'test.receiver',
+      amount: '1000'
+    },
+  })
+  console.log(`got end-to-end quote. source amount 1000 is equal to ${destinationAmount} on test.receiver`)
   const { fulfillment, data } = await sender.send({
     connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
