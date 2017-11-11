@@ -86,35 +86,29 @@ async function main () {
   const { destinationAmount } = await sender.send({
     connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
+    destination: 'test.receiver',
+    sourceAmount: 1000,
     quote: true,
-    transfer: {
-      destination: 'test.receiver',
-      amount: '1000'
-    },
   })
   console.log(`got end-to-end quote. source amount 1000 is equal to ${destinationAmount} on test.receiver`)
   const { fulfillment, data } = await sender.send({
     connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
-    transfer: {
-      destination: 'test.receiver',
-      amount: '1000',
-      expiry: new Date(Date.now() + 10000).toISOString(),
-      data: 'hello there from sender1!'
-    }
+    destination: 'test.receiver',
+    sourceAmount: '1000',
   })
   console.log(`sender got fulfillment: ${fulfillment.toString('base64')}, data: ${data && data.toString('utf8')} in ${Date.now() - start}ms`)
 
-  await sender2.send({
-    connector: `http://${encodedSender2Macaroon}@localhost:3000`,
-    sharedSecret: receiverSecret,
-    transfer: {
-      destination: 'test.receiver',
-      amount: '1000',
-      expiry: new Date(Date.now() + 10000).toISOString(),
-      data: 'hello there from sender2!'
-    }
-  })
+  //await sender2.send({
+    //connector: `http://${encodedSender2Macaroon}@localhost:3000`,
+    //sharedSecret: receiverSecret,
+    //transfer: {
+      //destination: 'test.receiver',
+      //amount: '1000',
+      //expiry: new Date(Date.now() + 10000).toISOString(),
+      //data: 'hello there from sender2!'
+    //}
+  //})
 }
 
 main().catch((err) => console.log(err))
