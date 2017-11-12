@@ -16,7 +16,8 @@ See [./example.js](./example.js) for how to use it.
 - [x] Connector keeps balances for multiple senders (and adjusts balance on incoming and outgoing transfers)
 - [x] Connector uses ILP addresses to determine where transfers are going to / coming from
 - [x] Quoting
-- [ ] Fragmented payments
+- [x] Chunked payments
+- [ ] Configurable congestion avoidance algorithm for chunked payments
 - [ ] Payment channel support
 - [ ] Error handler that produces machine-readable error objects
 - [ ] Auto-connect to connectors

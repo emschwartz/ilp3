@@ -8,9 +8,9 @@ const receiverSecret = crypto.randomBytes(32)
 const receiver = new ILP3()
   .use(ILP3.macaroons.authenticator({ secret: receiverSecret }))
   .use(ILP3.http.parser())
-  .use(ILP3.psk.receiver({ secret: receiverSecret }))
+  .use(ILP3.PSK.receiver({ secret: receiverSecret }))
   .use(async (ctx) => {
-    console.log(`receiver got payment for ${ctx.transfer.amount} with message:`, ctx.transfer.data.toString('utf8'))
+    console.log(`receiver got payment for ${ctx.transfer.amount}`)
     if (ctx.fulfillment) {
       ctx.data = 'thanks for the money!'
     }
@@ -60,55 +60,39 @@ const senderMacaroon = Macaroon.newMacaroon({
   identifier: 'test.sender',
   rootKey: connectorSecret
 })
-senderMacaroon.addFirstPartyCaveat('minBalance -1000')
+senderMacaroon.addFirstPartyCaveat('minBalance -1000000')
 const encodedSenderMacaroon = base64url(senderMacaroon.exportBinary())
-const sender = new ILP3()
-  .use(ILP3.psk.sender())
-  .use(ILP3.macaroons.timeLimiter())
-  .use(ILP3.fulfillments.validator())
-  .use(ILP3.http.client())
-
-const sender2Macaroon = Macaroon.newMacaroon({
-  identifier: 'test.sender2',
-  rootKey: connectorSecret
-})
-sender2Macaroon.addFirstPartyCaveat('minBalance -1000')
-const encodedSender2Macaroon = base64url(sender2Macaroon.exportBinary())
-const sender2 = new ILP3()
-  .use(ILP3.psk.sender())
+const sender = new ILP3.PSK.Sender()
   .use(ILP3.macaroons.timeLimiter())
   .use(ILP3.fulfillments.validator())
   .use(ILP3.http.client())
 
 async function main () {
   const start = Date.now()
-  // Get a quote first
-  const { destinationAmount } = await sender.send({
+   //Get a quote first
+  const quote = await sender.quote({
     connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
     destination: 'test.receiver',
     sourceAmount: 1000,
-    quote: true,
   })
-  console.log(`got end-to-end quote. source amount 1000 is equal to ${destinationAmount} on test.receiver`)
-  const { fulfillment, data } = await sender.send({
+  console.log(`got end-to-end quote. source amount 1000 is equal to ${quote.destinationAmount} on test.receiver`)
+
+  const result = await sender.send({
     connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
     destination: 'test.receiver',
     sourceAmount: '1000',
   })
-  console.log(`sender got fulfillment: ${fulfillment.toString('base64')}, data: ${data && data.toString('utf8')} in ${Date.now() - start}ms`)
+  console.log(`sender sent 1000, receiver received ${result.destinationAmount}`)
 
-  //await sender2.send({
-    //connector: `http://${encodedSender2Macaroon}@localhost:3000`,
-    //sharedSecret: receiverSecret,
-    //transfer: {
-      //destination: 'test.receiver',
-      //amount: '1000',
-      //expiry: new Date(Date.now() + 10000).toISOString(),
-      //data: 'hello there from sender2!'
-    //}
-  //})
+  const result2 = await sender.deliver({
+    connector: `http://${encodedSenderMacaroon}@localhost:3000`,
+    sharedSecret: receiverSecret,
+    destination: 'test.receiver',
+    destinationAmount: '500',
+  })
+  console.log(`sender delivered ${result2.destinationAmount} by sending ${result2.sourceAmount}`)
 }
 
 main().catch((err) => console.log(err))
