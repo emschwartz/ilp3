@@ -17,8 +17,11 @@ See [./example.js](./example.js) for how to use it.
 - [x] Connector uses ILP addresses to determine where transfers are going to / coming from
 - [x] Quoting
 - [x] Chunked payments
+- [x] XRP payment channel claim support
+- [ ] Separate chunked payments from PSK
+- [ ] Standalone XRP payment channel claim submitter
+- [ ] Bitcoin payment channel support
 - [ ] Configurable congestion avoidance algorithm for chunked payments
-- [ ] Payment channel support
 - [ ] Error handler that produces machine-readable error objects
 - [ ] Auto-connect to connectors
 - [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)

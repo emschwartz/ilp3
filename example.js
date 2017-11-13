@@ -25,30 +25,27 @@ const encodedConnectorMacaroon = base64url(connectorMacaroon.exportBinary())
 const connectorSecret = crypto.randomBytes(32)
 const balanceTracker = ILP3.balance.inMemoryTracker()
 const routes = {
-  'test.sender': {
-    currency: 'EUR',
-    scale: 6
-  },
-  'test.sender2': {
-    currency: 'EUR',
-    scale: 6
-  },
   'test.receiver': {
     uri: `http://${encodedConnectorMacaroon}@localhost:4000`,
-    currency: 'USD',
-    scale: 4
+    currencyCode: 'USD',
+    currencyScale: 4
   }
 }
 const connector = new ILP3()
-  .use(ILP3.macaroons.authenticator({ secret: connectorSecret }))
+  //.use(ILP3.macaroons.authenticator({ secret: connectorSecret }))
   .use(ILP3.http.parser({ streamData: true }))
+  .use(ILP3.xrp.incoming({
+    address: 'rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T',
+    secret: 'spzTqcr8LTrFfBPLdevZkcaqJb8Xu',
+    server: 'wss://s.altnet.rippletest.net:51233'
+  }))
   .use(balanceTracker.incoming())
   .use(ILP3.connector.simple({
     routes,
     secret: connectorSecret
   }))
   .use(balanceTracker.outgoing())
-  .use(ILP3.macaroons.timeLimiter())
+  //.use(ILP3.macaroons.timeLimiter())
   .use(ILP3.fulfillments.validator())
   .use(ILP3.http.client({
     streamData: true,
@@ -63,7 +60,13 @@ const senderMacaroon = Macaroon.newMacaroon({
 senderMacaroon.addFirstPartyCaveat('minBalance -1000000')
 const encodedSenderMacaroon = base64url(senderMacaroon.exportBinary())
 const sender = new ILP3.PSK.Sender()
-  .use(ILP3.macaroons.timeLimiter())
+  //.use(ILP3.macaroons.timeLimiter())
+  .use(ILP3.connectorList.xrpTestnet())
+  .use(ILP3.xrp.outgoing({
+    address: 'rMRyYByxGS48tfu5Qvy9n9G7mqQT6HvKcg',
+    secret: 'ssXVACGdHGcUdWjMM5E5fj5dCJFdu',
+    server: 'wss://s.altnet.rippletest.net:51233'
+  }))
   .use(ILP3.fulfillments.validator())
   .use(ILP3.http.client())
 
