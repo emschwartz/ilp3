@@ -18,15 +18,14 @@ See [./example.js](./example.js) for how to use it.
 - [x] Quoting
 - [x] Chunked payments
 - [x] XRP payment channel claim support
-- [ ] Separate chunked payments from PSK
 - [ ] Standalone XRP payment channel claim submitter
+- [ ] Auto-connect to connectors and save config (env file or db?)
+- [ ] Connector authentication to prevent DoS/theft while taking risk of first payments
 - [ ] Bitcoin payment channel support
+- [ ] Ethereum payment channel support (ideally including ERC 20 tokens)
 - [ ] Configurable congestion avoidance algorithm for chunked payments
+- [ ] Separate chunked payments from PSK
 - [ ] Error handler that produces machine-readable error objects
-- [ ] Auto-connect to connectors
 - [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)
-- [ ] Middleware that wraps a V1 Ledger Plugin
 - [ ] Bundle recommended set of middleware for senders, receivers, connectors
 - [ ] Store balances in DB
-- [ ] HTTP API on sending (PSK) client
-- [ ] Standard set of macaroon caveats
