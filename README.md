@@ -19,13 +19,16 @@ See [./example.js](./example.js) for how to use it.
 - [x] Chunked payments
 - [x] XRP payment channel claim support
 - [x] Sender submits claims after receiving fulfillment
-- [ ] Connector dynamically adjusts users' minimum balance
+- [x] Save payment channel claims to disk
 - [ ] Standalone XRP payment channel claim submitter
+- [ ] Auto-fund payment channel when balance is too low
+- [ ] Connector dynamically adjusts users' minimum balance
 - [ ] Auto-connect to connectors and save config (env file or db?)
 - [ ] Bitcoin payment channel support
 - [ ] Ethereum payment channel support (ideally including ERC 20 tokens)
 - [ ] Configurable congestion avoidance algorithm for chunked payments
 - [ ] Separate chunked payments from PSK
+- [ ] User data on chunked payments
 - [ ] Error handler that produces machine-readable error objects
 - [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)
 - [ ] Bundle recommended set of middleware for senders, receivers, connectors
