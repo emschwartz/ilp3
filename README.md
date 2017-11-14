@@ -18,9 +18,10 @@ See [./example.js](./example.js) for how to use it.
 - [x] Quoting
 - [x] Chunked payments
 - [x] XRP payment channel claim support
+- [x] Sender submits claims after receiving fulfillment
+- [ ] Connector dynamically adjusts users' minimum balance
 - [ ] Standalone XRP payment channel claim submitter
 - [ ] Auto-connect to connectors and save config (env file or db?)
-- [ ] Connector authentication to prevent DoS/theft while taking risk of first payments
 - [ ] Bitcoin payment channel support
 - [ ] Ethereum payment channel support (ideally including ERC 20 tokens)
 - [ ] Configurable congestion avoidance algorithm for chunked payments

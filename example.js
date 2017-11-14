@@ -53,14 +53,7 @@ const connector = new ILP3()
   }))
 connector.listen(3000)
 
-const senderMacaroon = Macaroon.newMacaroon({
-  identifier: 'test.sender',
-  rootKey: connectorSecret
-})
-senderMacaroon.addFirstPartyCaveat('minBalance -1000000')
-const encodedSenderMacaroon = base64url(senderMacaroon.exportBinary())
 const sender = new ILP3.PSK.Sender()
-  //.use(ILP3.macaroons.timeLimiter())
   .use(ILP3.connectorList.xrpTestnet())
   .use(ILP3.xrp.outgoing({
     address: 'rMRyYByxGS48tfu5Qvy9n9G7mqQT6HvKcg',
@@ -74,7 +67,6 @@ async function main () {
   const start = Date.now()
    //Get a quote first
   const quote = await sender.quote({
-    connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
     destination: 'test.receiver',
     sourceAmount: 1000,
@@ -82,7 +74,6 @@ async function main () {
   console.log(`got end-to-end quote. source amount 1000 is equal to ${quote.destinationAmount} on test.receiver`)
 
   const result = await sender.send({
-    connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
     destination: 'test.receiver',
     sourceAmount: '1000',
@@ -90,7 +81,6 @@ async function main () {
   console.log(`sender sent 1000, receiver received ${result.destinationAmount}`)
 
   const result2 = await sender.deliver({
-    connector: `http://${encodedSenderMacaroon}@localhost:3000`,
     sharedSecret: receiverSecret,
     destination: 'test.receiver',
     destinationAmount: '500',
