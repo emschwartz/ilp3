@@ -20,9 +20,11 @@ See [./example.js](./example.js) for how to use it.
 - [x] XRP payment channel claim support
 - [x] Sender submits claims after receiving fulfillment
 - [x] Save payment channel claims to disk
-- [ ] Standalone XRP payment channel claim submitter
+- [x] Standalone XRP payment channel claim submitter
+- [ ] Connector should recognize local routes
 - [ ] Auto-fund payment channel when balance is too low
 - [ ] Connector dynamically adjusts users' minimum balance
+- [ ] Figure out how to become a receiver (i.e. get the connector to create a channel to you)
 - [ ] Auto-connect to connectors and save config (env file or db?)
 - [ ] Bitcoin payment channel support
 - [ ] Ethereum payment channel support (ideally including ERC 20 tokens)
@@ -33,3 +35,4 @@ See [./example.js](./example.js) for how to use it.
 - [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)
 - [ ] Bundle recommended set of middleware for senders, receivers, connectors
 - [ ] Store balances in DB
+- [ ] Data collection

@@ -32,7 +32,6 @@ const routes = {
   }
 }
 const connector = new ILP3()
-  //.use(ILP3.macaroons.authenticator({ secret: connectorSecret }))
   .use(ILP3.http.parser({ streamData: true }))
   .use(ILP3.xrp.incoming({
     address: 'rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T',
@@ -42,10 +41,8 @@ const connector = new ILP3()
   .use(balanceTracker.incoming())
   .use(ILP3.connector.simple({
     routes,
-    secret: connectorSecret
   }))
   .use(balanceTracker.outgoing())
-  //.use(ILP3.macaroons.timeLimiter())
   .use(ILP3.fulfillments.validator())
   .use(ILP3.http.client({
     streamData: true,
