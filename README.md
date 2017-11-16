@@ -22,10 +22,11 @@ ILP3 middleware functions use the following properties on the context (`ctx`) ob
 | `amount` | (Positive) Integer String | Y | Transfer amount, denominated in the ledger's minimum units |
 | `destination` | ILP Address | Y | Destination address the payment is for |
 | `condition` | Buffer or Base64 String | Y | Hashlock condition used to secure the transfer |
-| `expiry` | ISO 8601 Timestamp String | Y | Expiration date for the transfer |
+| `expiry` | ISO 8601 Timestamp | Y | Expiration date for the transfer |
 | `data` | Buffer or Readable Stream | N | End-to-end data |
 | `to` | ILP Address | N | Local account the transfer is for |
 | `from` | ILP Address | N | Local account the transfer is from |
+| `extensions` | Object | N | Additional key-value pairs attached to the transfer (for example, payment channel claims) |
 
 ### Account Schema
 
@@ -53,6 +54,7 @@ ILP3 middleware functions use the following properties on the context (`ctx`) ob
 - [x] Sender submits claims after receiving fulfillment
 - [x] Save payment channel claims to disk
 - [x] Standalone XRP payment channel claim submitter
+- [ ] Use normal Passportjs for auth instead of Macaroons
 - [ ] Connector should recognize local routes
 - [ ] Figure out how to become a receiver (i.e. get the connector to create a channel to you)
 - [ ] Connector dynamically adjusts users' minimum balance
