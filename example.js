@@ -3,11 +3,9 @@
 const Koa = require('koa')
 const ILP3 = require('.')
 const crypto = require('crypto')
-const Macaroon = require('macaroon')
 
 const receiverSecret = crypto.randomBytes(32)
 const receiver = new ILP3()
-  .use(ILP3.macaroons.authenticator({ secret: receiverSecret }))
   .use(ILP3.http.parser())
   .use(ILP3.PSK.receiver({ secret: receiverSecret }))
   .use(async (ctx) => {
@@ -17,20 +15,14 @@ const receiver = new ILP3()
     }
   })
 const receiverServer = new Koa()
-console.log(receiver.middleware)
 receiverServer.use(receiver.middleware())
 receiverServer.listen(4000)
 
-const connectorMacaroon = Macaroon.newMacaroon({
-  identifier: 'test.receiver',
-  rootKey: receiverSecret
-})
-const encodedConnectorMacaroon = base64url(connectorMacaroon.exportBinary())
 const connectorSecret = crypto.randomBytes(32)
 const balanceTracker = ILP3.balance.inMemoryTracker()
 const routes = {
   'test.receiver': {
-    uri: `http://${encodedConnectorMacaroon}@localhost:4000`,
+    uri: `http://localhost:4000`,
     currencyCode: 'USD',
     currencyScale: 4
   }

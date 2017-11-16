@@ -6,6 +6,38 @@ An implementation of the Interledger Protocol V3.
 
 See [./example.js](./example.js) for how to use it.
 
+## Middleware API
+
+ILP3 middleware functions use the following properties on the context (`ctx`) object:
+
+* `ctx.incoming.transfer`
+* `ctx.incoming.account`
+* `ctx.outgoing.transfer`
+* `ctx.outgoing.account`
+
+### Transfer Schema
+
+| Property | Type | Required? | Description |
+|---|---|---|---|
+| `amount` | (Positive) Integer String | Y | Transfer amount, denominated in the ledger's minimum units |
+| `destination` | ILP Address | Y | Destination address the payment is for |
+| `condition` | Buffer or Base64 String | Y | Hashlock condition used to secure the transfer |
+| `expiry` | ISO 8601 Timestamp String | Y | Expiration date for the transfer |
+| `data` | Buffer or Readable Stream | N | End-to-end data |
+| `to` | ILP Address | N | Local account the transfer is for |
+| `from` | ILP Address | N | Local account the transfer is from |
+
+### Account Schema
+
+| Property | Type | Required? | Description |
+|---|---|---|---|
+| `uri` | URI | N | URI used to communicate with this account-holder |
+| `currencyCode` | String | N | Currency code (such as `"USD"`) the account is denominated in |
+| `currencyScale` | Number | N | Integer `(..., -2, -1, 0, 1, 2, ...)`, such that one of the ledger's base units equals `10^-<currencyScale> <currencyCode>` |
+| `minBalance` | Integer String | N | The minimum balance the account-holder is allowed to have |
+| `adjustBalance` | Integer String | N | Used to instruct a balance-tracking middleware to adjust the account's balance by the given amount (for example, `'1000'` would mean the account balance should be credited 1000 and `'-1000'` would mean the account balance should be debited 1000) |
+
+
 ## TODOs
 
 - [x] Connector exchange rates
@@ -22,9 +54,8 @@ See [./example.js](./example.js) for how to use it.
 - [x] Save payment channel claims to disk
 - [x] Standalone XRP payment channel claim submitter
 - [ ] Connector should recognize local routes
-- [ ] Auto-fund payment channel when balance is too low
-- [ ] Connector dynamically adjusts users' minimum balance
 - [ ] Figure out how to become a receiver (i.e. get the connector to create a channel to you)
+- [ ] Connector dynamically adjusts users' minimum balance
 - [ ] Auto-connect to connectors and save config (env file or db?)
 - [ ] Bitcoin payment channel support
 - [ ] Ethereum payment channel support (ideally including ERC 20 tokens)
@@ -34,5 +65,6 @@ See [./example.js](./example.js) for how to use it.
 - [ ] Error handler that produces machine-readable error objects
 - [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)
 - [ ] Bundle recommended set of middleware for senders, receivers, connectors
+- [ ] Auto-fund payment channel when balance is too low
 - [ ] Store balances in DB
 - [ ] Data collection
