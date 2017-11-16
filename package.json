@@ -11,7 +11,6 @@
   "dependencies": {
     "big.js": "^5.0.3",
     "debug": "^3.1.0",
-    "koa": "^2.4.1",
     "koa-compose": "^4.0.0",
     "lowdb": "^1.0.0",
     "macaroon": "^3.0.0",
@@ -19,5 +18,8 @@
     "raw-body": "^2.3.2",
     "ripple-keypairs": "^0.10.1",
     "ripple-lib": "^0.17.8"
+  },
+  "devDependencies": {
+    "koa": "^2.4.1"
   }
 }

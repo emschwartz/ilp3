@@ -1,5 +1,6 @@
 'use strict'
 
+const Koa = require('koa')
 const ILP3 = require('.')
 const crypto = require('crypto')
 const Macaroon = require('macaroon')
@@ -15,7 +16,10 @@ const receiver = new ILP3()
       ctx.data = 'thanks for the money!'
     }
   })
-receiver.listen(4000)
+const receiverServer = new Koa()
+console.log(receiver.middleware)
+receiverServer.use(receiver.middleware())
+receiverServer.listen(4000)
 
 const connectorMacaroon = Macaroon.newMacaroon({
   identifier: 'test.receiver',
@@ -48,7 +52,9 @@ const connector = new ILP3()
     streamData: true,
     routes
   }))
-connector.listen(3000)
+const connectorServer = new Koa()
+connectorServer.use(connector.middleware())
+connectorServer.listen(3000)
 
 const sender = new ILP3.PSK.Sender()
   .use(ILP3.connectorList.xrpTestnet())
