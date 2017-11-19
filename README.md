@@ -4,9 +4,44 @@
 
 An implementation of the Interledger Protocol V3.
 
-See [./example.js](./example.js) for how to use it.
+## Getting Started
 
-## Middleware API
+### As a Sender
+
+```js
+const { SimpleSender } = require('ilp3')
+const sender = new SimpleSender({
+  xrpAddress: 'rMRyYByxGS48tfu5Qvy9n9G7mqQT6HvKcg',
+  xrpSecret: 'ssXVACGdHGcUdWjMM5E5fj5dCJFdu',
+  livenet: false
+})
+
+sender.quote({
+  sharedSecret: receiverSecret,
+  destination: 'test.receiver',
+  sourceAmount: 1000,
+}).then((quote) => {
+  console.log(quote.destinationAmount)
+})
+
+sender.send({
+  sharedSecret: receiverSecret,
+  destination: 'test.receiver',
+  sourceAmount: '1000',
+}).then((result) => {
+  console.log(result.destinationAmount)
+})
+```
+
+### As a Receiver
+
+See [./example.js](./example.js)
+
+### As a Connector
+
+See [./example.js](./example.js)
+
+## ILP3 Middleware API
 
 ILP3 middleware functions use the following properties on the context (`ctx`) object:
 
