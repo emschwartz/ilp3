@@ -48,15 +48,11 @@ const connectorServer = new Koa()
 connectorServer.use(connector.middleware())
 connectorServer.listen(3000)
 
-const sender = new ILP3.PSK.Sender()
-  .use(ILP3.connectorList.xrpTestnet())
-  .use(ILP3.xrp.outgoing({
-    address: 'rMRyYByxGS48tfu5Qvy9n9G7mqQT6HvKcg',
-    secret: 'ssXVACGdHGcUdWjMM5E5fj5dCJFdu',
-    server: 'wss://s.altnet.rippletest.net:51233'
-  }))
-  .use(ILP3.fulfillments.validator())
-  .use(ILP3.http.client())
+const sender = new ILP3.SimpleSender({
+  xrpAddress: 'rMRyYByxGS48tfu5Qvy9n9G7mqQT6HvKcg',
+  xrpSecret: 'ssXVACGdHGcUdWjMM5E5fj5dCJFdu',
+  livenet: false
+})
 
 async function main () {
   const start = Date.now()
