@@ -31,6 +31,14 @@ sender.send({
 }).then((result) => {
   console.log(result.destinationAmount)
 })
+
+sender.deliver({
+  sharedSecret: receiverSecret,
+  destination: 'test.receiver',
+  destinationAmount: '1000',
+}).then((result) => {
+  console.log(result.sourceAmount)
+})
 ```
 
 ### As a Receiver
@@ -90,7 +98,6 @@ ILP3 middleware functions use the following properties on the context (`ctx`) ob
 - [x] Save payment channel claims to disk
 - [x] Standalone XRP payment channel claim submitter
 - [x] Store balances in DB
-- [ ] Connector should recognize local routes
 - [ ] Figure out how to become a receiver (i.e. get the connector to create a channel to you)
 - [ ] Connector dynamically adjusts users' minimum balance
 - [ ] Auto-connect to connectors and save config (env file or db?)

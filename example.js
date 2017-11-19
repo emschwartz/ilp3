@@ -3,6 +3,7 @@
 const Koa = require('koa')
 const ILP3 = require('.')
 const leveldown = require('leveldown')
+const crypto = require('crypto')
 
 const receiverSecret = crypto.randomBytes(32)
 const receiver = new ILP3()
@@ -21,13 +22,14 @@ receiverServer.listen(4000)
 const balanceTracker = ILP3.balance.tracker({
   leveldown: leveldown('./connector-balance-db')
 })
-const routes = {
-  'test.receiver': {
-    uri: `http://localhost:4000`,
-    currencyCode: 'USD',
-    currencyScale: 4
-  }
-}
+const connectorRouter = new ILP3.connector.Simple({
+  spread: 0.01
+})
+connectorRouter.addRoute('test.receiver', {
+  uri: `http://localhost:4000`,
+  currencyCode: 'USD',
+  currencyScale: 4
+})
 const connector = new ILP3()
   .use(ILP3.http.parser({ streamData: true }))
   .use(ILP3.xrp.incoming({
@@ -36,15 +38,10 @@ const connector = new ILP3()
     server: 'wss://s.altnet.rippletest.net:51233'
   }))
   .use(balanceTracker.incoming())
-  .use(ILP3.connector.simple({
-    routes,
-  }))
+  .use(connectorRouter.middleware())
   .use(balanceTracker.outgoing())
   .use(ILP3.fulfillments.validator())
-  .use(ILP3.http.client({
-    streamData: true,
-    routes
-  }))
+  .use(ILP3.http.client({ streamData: true }))
 const connectorServer = new Koa()
 connectorServer.use(connector.middleware())
 connectorServer.listen(3000)
