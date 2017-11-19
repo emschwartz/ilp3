@@ -13,17 +13,16 @@
     "big.js": "^5.0.3",
     "debug": "^3.1.0",
     "koa-compose": "^4.0.0",
-    "leveldown": "^2.0.1",
     "levelup": "^2.0.1",
     "lowdb": "^1.0.0",
     "macaroon": "^3.0.0",
-    "memdown": "^1.4.1",
     "node-fetch": "^1.7.3",
     "raw-body": "^2.3.2",
     "ripple-keypairs": "^0.10.1",
     "ripple-lib": "^0.17.8"
   },
   "devDependencies": {
-    "koa": "^2.4.1"
+    "koa": "^2.4.1",
+    "leveldown": "^2.0.1"
   }
 }

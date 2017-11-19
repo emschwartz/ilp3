@@ -2,7 +2,7 @@
 
 const Koa = require('koa')
 const ILP3 = require('.')
-const crypto = require('crypto')
+const leveldown = require('leveldown')
 
 const receiverSecret = crypto.randomBytes(32)
 const receiver = new ILP3()
@@ -18,8 +18,9 @@ const receiverServer = new Koa()
 receiverServer.use(receiver.middleware())
 receiverServer.listen(4000)
 
-const connectorSecret = crypto.randomBytes(32)
-const balanceTracker = ILP3.balance.tracker({ dbPath: './connector-balance-db' })
+const balanceTracker = ILP3.balance.tracker({
+  leveldown: leveldown('./connector-balance-db')
+})
 const routes = {
   'test.receiver': {
     uri: `http://localhost:4000`,
