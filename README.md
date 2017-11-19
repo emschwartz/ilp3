@@ -54,7 +54,7 @@ ILP3 middleware functions use the following properties on the context (`ctx`) ob
 - [x] Sender submits claims after receiving fulfillment
 - [x] Save payment channel claims to disk
 - [x] Standalone XRP payment channel claim submitter
-- [ ] Use normal Passportjs for auth instead of Macaroons
+- [x] Store balances in DB
 - [ ] Connector should recognize local routes
 - [ ] Figure out how to become a receiver (i.e. get the connector to create a channel to you)
 - [ ] Connector dynamically adjusts users' minimum balance
@@ -68,5 +68,5 @@ ILP3 middleware functions use the following properties on the context (`ctx`) ob
 - [ ] Compatibility API (that mimicks the `ilp` module for ILPv1)
 - [ ] Bundle recommended set of middleware for senders, receivers, connectors
 - [ ] Auto-fund payment channel when balance is too low
-- [ ] Store balances in DB
 - [ ] Data collection
+- [ ] Use normal Passportjs for auth instead of Macaroons

@@ -19,7 +19,7 @@ receiverServer.use(receiver.middleware())
 receiverServer.listen(4000)
 
 const connectorSecret = crypto.randomBytes(32)
-const balanceTracker = ILP3.balance.inMemoryTracker()
+const balanceTracker = ILP3.balance.tracker({ dbPath: './connector-balance-db' })
 const routes = {
   'test.receiver': {
     uri: `http://localhost:4000`,
