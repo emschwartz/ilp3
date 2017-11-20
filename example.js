@@ -19,6 +19,7 @@ const receiverServer = new Koa()
 receiverServer.use(receiver.middleware())
 receiverServer.listen(4000)
 
+// TODO use one db with sublevels for all connector middleware
 const balanceTracker = ILP3.balance.tracker({
   leveldown: leveldown('./connector-balance-db')
 })
@@ -36,6 +37,11 @@ const connector = new ILP3()
     address: 'rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T',
     secret: 'spzTqcr8LTrFfBPLdevZkcaqJb8Xu',
     server: 'wss://s.altnet.rippletest.net:51233'
+  }))
+  .use(ILP3.bandwidth.adjuster({
+    leveldown: leveldown('./connector-bandwidth-db'),
+    increaseRatio: 0.005,
+    maximum: 10000
   }))
   .use(balanceTracker.incoming())
   .use(connectorRouter.middleware())
