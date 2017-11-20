@@ -101,7 +101,7 @@ ILP3 middleware functions use the following properties on the context (`ctx`) ob
 - [x] Connector dynamically adjusts users' minimum balance
 - [x] Use a single db for all of the connector middleware
 - [x] Receiver can request that the connector create a payment channel to them
-- [ ] Connector stores routes in db
+- [x] Connector stores routes in db
 - [ ] Auto-connect to connectors and save config (env file or db?)
 - [ ] Bitcoin payment channel support
 - [ ] Ethereum payment channel support (ideally including ERC 20 tokens)

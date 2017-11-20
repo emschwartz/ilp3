@@ -30,18 +30,15 @@ const receiverServer = new Koa()
 receiverServer.use(receiver.middleware())
 receiverServer.listen(4000)
 
-const connectorDb = levelup(leveldown('./connector-db'))
+// Note: the connectorDb must be opened before it is used
+const connectorDb = leveldown('./connector-db')
 const balanceTracker = ILP3.balance.tracker({
   leveldown: sublevel(connectorDb, 'balance')
 })
 const connectorRouter = new ILP3.connector.Simple({
-  spread: 0.01
+  spread: 0.01,
+  leveldown: sublevel(connectorDb, 'routes')
 })
-//connectorRouter.addRoute('test.receiver', {
-  //uri: `http://localhost:4000`,
-  //currencyCode: 'USD',
-  //currencyScale: 4
-//})
 const connector = new ILP3()
   .use(ILP3.http.parser({ streamData: true }))
   .use(ILP3.xrp.incoming({
@@ -73,6 +70,8 @@ const sender = new ILP3.SimpleSender({
 })
 
 async function main () {
+  // TODO make the sublevel thing less janky so we don't need to explicitly call this
+  await levelup(connectorDb).open()
   const start = Date.now()
    //Get a quote first
   const quote = await sender.quote({
