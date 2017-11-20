@@ -11,6 +11,14 @@ const sublevel = require('./lib/util/sublevel')
 const receiverSecret = crypto.randomBytes(32)
 const receiver = new ILP3()
   .use(ILP3.http.parser())
+  .use(ILP3.xrp.requestChannel({
+    address: 'rnpQy9QfeYMmXudBQfUfRHTcBiKYyNaSEM',
+    secret: 'saDAy8SnKRDEiDJvJf5NydzKe9zdF',
+    server: 'wss://s.altnet.rippletest.net:51233',
+    uri: 'http://localhost:4000',
+    peerAddress: 'rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T',
+    peerUri: 'http://localhost:3000'
+  }))
   .use(ILP3.PSK.receiver({ secret: receiverSecret }))
   .use(async (ctx) => {
     console.log(`receiver got payment for ${ctx.transfer.amount}`)
@@ -29,17 +37,20 @@ const balanceTracker = ILP3.balance.tracker({
 const connectorRouter = new ILP3.connector.Simple({
   spread: 0.01
 })
-connectorRouter.addRoute('test.receiver', {
-  uri: `http://localhost:4000`,
-  currencyCode: 'USD',
-  currencyScale: 4
-})
+//connectorRouter.addRoute('test.receiver', {
+  //uri: `http://localhost:4000`,
+  //currencyCode: 'USD',
+  //currencyScale: 4
+//})
 const connector = new ILP3()
   .use(ILP3.http.parser({ streamData: true }))
   .use(ILP3.xrp.incoming({
     address: 'rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T',
     secret: 'spzTqcr8LTrFfBPLdevZkcaqJb8Xu',
     server: 'wss://s.altnet.rippletest.net:51233'
+  }))
+  .use(ILP3.xrp.handleChannelRequest({
+    handler: connectorRouter.addRoute.bind(connectorRouter)
   }))
   .use(ILP3.bandwidth.adjuster({
     leveldown: sublevel(connectorDb, 'bandwidth'),
@@ -66,21 +77,21 @@ async function main () {
    //Get a quote first
   const quote = await sender.quote({
     sharedSecret: receiverSecret,
-    destination: 'test.receiver',
+    destination: 'test3.crypto.xrp.pc.rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T.rnpQy9QfeYMmXudBQfUfRHTcBiKYyNaSEM',
     sourceAmount: 1000,
   })
-  console.log(`got end-to-end quote. source amount 1000 is equal to ${quote.destinationAmount} on test.receiver`)
+  console.log(`got end-to-end quote. source amount 1000 is equal to ${quote.destinationAmount} on test3.crypto.xrp.pc.rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T.rnpQy9QfeYMmXudBQfUfRHTcBiKYyNaSEM`)
 
   const result = await sender.send({
     sharedSecret: receiverSecret,
-    destination: 'test.receiver',
+    destination: 'test3.crypto.xrp.pc.rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T.rnpQy9QfeYMmXudBQfUfRHTcBiKYyNaSEM',
     sourceAmount: '1000',
   })
   console.log(`sender sent 1000, receiver received ${result.destinationAmount}`)
 
   const result2 = await sender.deliver({
     sharedSecret: receiverSecret,
-    destination: 'test.receiver',
+    destination: 'test3.crypto.xrp.pc.rw3PbBm3HJGXtJUxstWWDtu1i3U7ss9T2T.rnpQy9QfeYMmXudBQfUfRHTcBiKYyNaSEM',
     destinationAmount: '500',
   })
   console.log(`sender delivered ${result2.destinationAmount} by sending ${result2.sourceAmount}`)
