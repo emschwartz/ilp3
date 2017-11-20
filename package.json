@@ -11,6 +11,7 @@
   "dependencies": {
     "big.js": "^5.0.3",
     "debug": "^3.1.0",
+    "encoding-down": "^3.0.0",
     "koa-compose": "^4.0.0",
     "levelup": "^2.0.1",
     "lowdb": "^1.0.0",

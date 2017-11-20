@@ -2,8 +2,11 @@
 
 const Koa = require('koa')
 const ILP3 = require('.')
+const levelup = require('levelup')
 const leveldown = require('leveldown')
 const crypto = require('crypto')
+const base64url = require('./lib/util/base64url')
+const sublevel = require('./lib/util/sublevel')
 
 const receiverSecret = crypto.randomBytes(32)
 const receiver = new ILP3()
@@ -19,9 +22,9 @@ const receiverServer = new Koa()
 receiverServer.use(receiver.middleware())
 receiverServer.listen(4000)
 
-// TODO use one db with sublevels for all connector middleware
+const connectorDb = levelup(leveldown('./connector-db'))
 const balanceTracker = ILP3.balance.tracker({
-  leveldown: leveldown('./connector-balance-db')
+  leveldown: sublevel(connectorDb, 'balance')
 })
 const connectorRouter = new ILP3.connector.Simple({
   spread: 0.01
@@ -39,7 +42,7 @@ const connector = new ILP3()
     server: 'wss://s.altnet.rippletest.net:51233'
   }))
   .use(ILP3.bandwidth.adjuster({
-    leveldown: leveldown('./connector-bandwidth-db'),
+    leveldown: sublevel(connectorDb, 'bandwidth'),
     increaseRatio: 0.005,
     maximum: 10000
   }))
@@ -84,12 +87,4 @@ async function main () {
 }
 
 main().catch((err) => console.log(err))
-
-function base64url (buffer) {
-  return Buffer.from(buffer, 'base64')
-    .toString('base64')
-    .replace(/=+$/, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-}
 

@@ -99,7 +99,7 @@ ILP3 middleware functions use the following properties on the context (`ctx`) ob
 - [x] Standalone XRP payment channel claim submitter
 - [x] Store balances in DB
 - [x] Connector dynamically adjusts users' minimum balance
-- [ ] Use a single db for all of the connector middleware
+- [x] Use a single db for all of the connector middleware
 - [ ] Figure out how to become a receiver (i.e. get the connector to create a channel to you)
 - [ ] Auto-connect to connectors and save config (env file or db?)
 - [ ] Bitcoin payment channel support
