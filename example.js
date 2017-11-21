@@ -70,8 +70,6 @@ const sender = new ILP3.SimpleSender({
 })
 
 async function main () {
-  // TODO make the sublevel thing less janky so we don't need to explicitly call this
-  await levelup(connectorDb).open()
   const start = Date.now()
    //Get a quote first
   const quote = await sender.quote({
