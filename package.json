@@ -4,7 +4,8 @@
   "description": "",
   "main": "lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "standard lib/**/*.js"
   },
   "author": "Evan Schwartz <evan@ripple.com>",
   "license": "Apache-2.0",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "koa": "^2.4.1",
-    "leveldown": "^2.0.1"
+    "leveldown": "^2.0.1",
+    "standard": "^10.0.3"
   }
 }
