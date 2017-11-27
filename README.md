@@ -1,55 +1,138 @@
-# ILPv3
+# ILPv3 - A new take on Interledger
 
-**This is a prototype. Nothing is finished and everything could change.**
+**This is a prototype. Nothing is finished, everything could change and feedback is welcome.**
 
-An implementation of the Interledger Protocol V3.
+## Overview
 
-## Getting Started
+ILPv3 is a different take on Interledger that aims to simplify the protocol stack and implementation even further and get the open Interledger started faster. It begins with the premise that all payments will be small and larger ones will be sent as [Chunked Payments](#streaming-and-chunked-payments). Building for small payments makes connectors simpler, lowers their risk, and should make the system more competitive.
 
-### As a Sender
+ILPv3 also adopts a number of other simplifications, including making quoting an end-to-end concern and making a standard ILP packet encoding optional (i.e. no OER if you don't want it). The ledger layer protocol used here is just a couple of ILP headers (`ILP-Destination`, `ILP-Condition`, `ILP-Expiry`) attached to a standard HTTP request (the ILP packet data is the HTTP body).
 
-```js
-const { SimpleSender } = require('ilp3')
-const sender = new SimpleSender({
-  xrpAddress: 'rMRyYByxGS48tfu5Qvy9n9G7mqQT6HvKcg',
-  xrpSecret: 'ssXVACGdHGcUdWjMM5E5fj5dCJFdu',
-  livenet: false
-})
+This implementation uses a "middleware function"-based architecture, inspired by [Koa.js](http://koajs.com/), instead of the [Ledger Plugin](https://interledger.org/rfcs/0004-ledger-plugin-interface/) design. Requests are passed through a stack of functions that handle behavior such as parsing ILP details, checking a user's balance, and sending outgoing transfers using specific ledger protocols. Middleware functions can be composed into senders, connectors, and receivers (see [example.js](./example.js)), enabling greater code reuse and easier extensibility.
 
-sender.quote({
-  sharedSecret: receiverSecret,
-  destination: 'test.receiver',
-  sourceAmount: 1000,
-}).then((quote) => {
-  console.log(quote.destinationAmount)
-})
+## Trying It Out
 
-sender.send({
-  sharedSecret: receiverSecret,
-  destination: 'test.receiver',
-  sourceAmount: '1000',
-}).then((result) => {
-  console.log(result.destinationAmount)
-})
+Clone the repo, `npm install`, and run `DEBUG=* node example.js` to see end-to-end quoting and chunked payments in action over XRP Payment Channels.
 
-sender.deliver({
-  sharedSecret: receiverSecret,
-  destination: 'test.receiver',
-  destinationAmount: '1000',
-}).then((result) => {
-  console.log(result.sourceAmount)
-})
-```
+## Streaming and Chunked Payments
 
-### As a Receiver
+> "Streaming payments change everything." - @justmoon
 
-See [./example.js](./example.js)
+**Streaming Payments** are payments sent in many little increments in exchange for an ongoing or streaming service, such as paying for a movie 1 Mb at a time. We used to use this to also refer to what we now call Chunked Payments.
 
-### As a Connector
+**Chunked Payments** are larger payments split into smaller chunks for sending over the Interledger. Now why would you want to do that?
 
-See [./example.js](./example.js)
+### Advantages of Chunked Payments
 
-## ILP3 Middleware API
+#### 1. Accommodating Low Maximum Payment Sizes
+
+Every payment path through the Interledger will have some Maximum Payment Size (MPS, like the Internet's Maximum Transmission Unit or how large packets can be). The average MPS is likely to be low because of connector risk and liquidity factors. Chunked payments will be required if senders ever want to send larger amounts than the path MPS.
+
+
+#### 2. Enabling Smaller Connectors
+
+There are simply more parties in the world that could facilitate a $0.10 payment than a $10,000 payment. Splitting larger payments into many small ones allows connectors with less liquidity to participate in the Interledger.
+
+#### 3. Increasing Competition
+
+This is the main reason we expect Interledger payments to be significantly cheaper than traditional payments in the medium to long term. The more connectors can compete to facilitate each payment, the cheaper they should be.
+
+#### 4. Reducing Connector Risk
+
+One of the main risks for Interledger connectors is failing to fulfill an incoming payment in time, and thus losing the principal of a payment. The smaller each payment, the lower the risk. If connectors are sending many tiny payments and some of them start failing, mitigation strategies can be used to avoid losing more money. Smaller payments also enable shorter timeouts (because the downside of payments failing is lower) and reduce the free option problem that comes with conditional payments.
+
+#### 5. Works with Simple Payment Channels
+
+Interledger can be used with any ledger using different types of [Hashed Timelock Agreements](https://interledger.org/rfcs/0022-hashed-timelock-agreements/). [Simple (unconditional) payment channels](https://interledger.org/rfcs/0022-hashed-timelock-agreements/#simple-payment-channels) are arguably a good balance between ledger requirement complexity (XRP, Ethereum, and Bitcoin, even without SegWit, support these), speed, and cost. If all payments are small, the risk to connectors posed by peers running off before sending a payment channel update can be reduced to an acceptable amount (note that senders still do not need to trust connectors).
+
+#### 6. Protocol Simplicity
+
+If we can assume all payments are small, we can simplify the Interledger protocol stack further. For example, [liquidity curves](https://github.com/interledger/rfcs/blob/master/0008-interledger-quoting-protocol/0008-interledger-quoting-protocol.md#quoteliquidityresponse) are only necessary if payments vary greatly in size. A simple exchange rate suffices for small payments.
+
+### Disadvantages of Chunked Payments
+
+**Note:** These are potentially serious issues, but it is important to note that they are inevitable if anyone ever wants to send larger payments than the payment path can support. One of the main questions we have to answer now is whether we expect the average Maximum Payment Size to be on the order of $1, $10, $100, $1000 or more. The higher this number, the greater the risk and liquidity requirements will be for connectors, which in turn limits the pool of potential connectors.
+
+#### 1. Partial Payments
+
+If the whole payment is no longer delivered atomically, there is a possibility that the path could run out of liquidity mid-payment and the receiver would end up with only some of the money they requested. In most cases, the sender should be able to keep retrying chunks until the whole payment is delivered. However, if the path completely runs out of liquidity (which should happen extremely rarely), receivers might need to send back payments that cannot be completed.
+
+#### 2. Fluctuating Exchange Rates
+
+The rate for a payment can change due to legitimate or illegitimate reasons after the first chunk is sent but before the last one is received. If the exchange rate changes dramatically and unpredictably over the course of a payment, it would make for a bad sender experience.
+
+# Differences from ILPv1
+
+## Interledger Layer
+
+
+#### 1. Forwarding Only
+
+Connectors only "forward" payments, applying their own rate to the incoming transfer to get the outgoing transfer amount. There is no ["delivery"](https://github.com/interledger/rfcs/issues/77) so connectors do not need to know the exact and up-to-date exchange rates of all other connectors.
+
+#### 2. No Prefix Restrictions on ILP Addresses
+
+In order to support the "delivery" feature, connectors needed to know whether they were the last hop in a payment path and thus whether an ILP address was "local". This required restrictions on ILP addresses (not being able to use a ledger's address in another ledger's prefix unless the exchange rate is 1:1) that are unnecessary in a forwarding-only system.
+
+#### 3. No Destination Amount in the ILP Packet
+
+The amount field in the ILP packet was intended for transport layer protocols and for connectors to be able to deliver the exact destination amount. Since there is no delivery, there is no need for a destination amount field to be part of the standard ILP packet understood by every connector. Transport layer protocols can include the amount in the data field if they so choose.
+
+#### 4. End-to-End Quoting
+
+The requirements for quoting are inextricably linked to the transport protocol being used. For example, a static, non-binding ILQP quote is not very helpful for a streaming or chunked payment because the rate may change over time. ILPv3 makes quoting functionality part of the transport protocol and removes the need for an Interledger Quoting Protocol that must be understood by all connectors. Instead, senders and receivers use test payments (which can be fulfilled or rejected depending on the use case) to determine how much money arrives when a certain source amount is sent. (I believe @justmoon came up with the idea of using test payments for quoting)
+
+#### 5. No Standard Packet Encoding
+
+The main reasons for having a canonical ILP packet format were a) to have a consistent encoding for ILP and other Interledger layer protocols such as ILQP b) to distinguish the Interledger layer details from the ledger layer details and c) for transport layer protocols to be able to hash the packet into the condition as IPR and PSK do. Point a) is no longer applicable because there is only ILP, there are no other protocols on the Interledger layer. After the "Interledger Enlightenment", b) is no longer necessary because we make less of a distinction between ledgers and connectors, and connectors need to see the destination address alongside the incoming transfer amount. Finally, transport layer protocols can hash the data by itself instead of the "packet" as a whole. Given all of these, having a standard encoding becomes only a nice-to-have that can prevent the few unchanging fields in an ILP payment (destination address, data, and condition) from being decoded and reencoded at every hop. However, this is not strictly necessary and does not need to be standardized up-front. (@adrianhopebailie was the one that first [took issue](https://github.com/interledger/rfcs/pull/270) with the distinction between the Interledger and ledger layers)
+
+#### 6. Simple Exchange Rates Instead of Liquidity Curves
+
+Liquidity curves were necessary to express how exchange rates varied with payment size. If all payments are assumed to be small, this complex feature can be replaced by a single number representing the exchange rate.
+
+#### 7. (Potentially) Higher Data Limit
+
+In this implementation, the ILP data is simply the body of an HTTP request, which connectors can stream from the incoming request to the outgoing request, rather than buffering it all into memory. If that becomes standard practice, connectors could allow larger amounts of data to travel with ILP payments, because the impact on the connector would be minimal.
+
+## Ledger Layer
+
+
+#### 1. Fulfillments and Errors are Responses, Not Requests
+
+In most cases, there is nothing a connector can do if they try to pass back a fulfillment or an error and it is not accepted.
+
+#### 2. Transfers Only
+
+Since there is no ILQP, there is no need for the ledger layer protocol to do messaging or anything other than sending transfers. Other protocols such as those related to routing can be built either on top of TCP/IP or Interledger payments.
+
+#### 3. Recommend Using HTTP
+
+Since the ledger layer protocol only needs to handle a single request/response call with a couple of structured fields and some opaque data, HTTP is a perfect protocol for this. The ILP-related fields can be sent as headers and the ILP data can be sent as the HTTP body. Nearly all programming languages support HTTP and no additional encoding library would be needed to implement ILP. HTTP Keepalive or HTTP2 can be used to avoid the extra round trips for TCP and TLS when multiple payments are being sent between the same two peers. Implementations may still abstract away the communication protocol used to enable using alternatives such as RPC over Websockets.
+
+#### 4. Fast HTLAs Only
+
+Interledger can theoretically support a wide variety of ledger integrations (see [Hashed Timelock Agreements (HTLAs)](https://interledger.org/rfcs/0022-hashed-timelock-agreements/#simple-payment-channels)), but today, most ledgers available are too slow or expensive for on-ledger escrow to provide a good experience. Payment channels and trustlines should be the only recommended HTLA types for now and other protocols should be built to assume that transfers can be executed in milliseconds, as opposed to seconds or longer.
+
+## Implementation
+
+
+#### 1. Middleware Instead of Plugins
+
+The idea of [Ledger Plugins](https://interledger.org/rfcs/0004-ledger-plugin-interface/) was to enable the same ILP client and connector software to be used with different ledgers. However, we found that we needed additional ways to reuse code across plugins (see the [Payment Channel Plugin Framework](https://github.com/interledgerjs/ilp-plugin-payment-channel-framework/)), which suggests that plugins are not the best way to structure the code internally. Inspired by [Koa.js](http://koajs.com/) and [levelup](https://github.com/Level/levelup), this implementation separates tasks into a stack of middleware functions that handle various checks or transformations and then pass control to the next function. This design makes it easier to add new functionality into the flow, such as a balance checker that uses a specific database, a transfer logger, or a new ledger layer protocol. See the [Middleware API](#middleware-api) below for more details.
+
+#### 2. Single Process Per Account
+
+Individual account balances must be kept consistent, so those are likely to always be a performance bottleneck. As pioneered by @justmoon in the [`ilp-connector-shard`](https://github.com/interledgerjs/ilp-connector-shard), this implementation assumes that each account will be managed by a single process. This allows the balance to be cached and updated in memory and enables using fast, single-process databases such as [LevelDB](http://leveldb.org/) or [RocksDB](http://rocksdb.org/).
+
+#### 3. Don't Persist Prepared Transfers
+
+If an account is managed by a single process and transfer timeouts are short, the balance change from a prepared transfer can be kept in memory instead of on disk. If the connector server crashes before the transfer was finalized, it is unlikely that the server will come back online in time for the transfer to be fulfilled, so there is little point in persisting the prepared transfer. This makes the speed of preparing a payment end-to-end equal to the network latency plus a small number of in-memory operations, which should be extremely fast. Even when transfers are fulfilled, the balance changes can be persisted after the fulfillment is passed on.
+
+#### 4. Stream ILP Data
+
+ILP data is end-to-end, so connectors can stream the data from the incoming request to the outgoing request without buffering it into memory. This should enable connectors to have higher data limits with less impact on their server performance.
+
+## Middleware API
 
 ILP3 middleware functions use the following properties on the context (`ctx`) object:
 
