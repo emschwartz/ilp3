@@ -14,9 +14,11 @@ This implementation uses a "middleware function"-based architecture, inspired by
 
 Clone the repo, `npm install`, and run `DEBUG=* node example.js` to see end-to-end quoting and chunked payments in action over XRP Payment Channels.
 
-## Streaming and Chunked Payments
+## Building for Small Payments
 
 > "Streaming payments change everything." - @justmoon
+
+Building an Interledger implementation designed exclusively for small payments enables us to make a number of important simplifications to the protocols and stack. This not only makes Interledger fit better with our target use case of micropayments, but there are reasons to believe that all payments may become micropayments (if you're saying "whaat??", read on).
 
 **Streaming Payments** are payments sent in many little increments in exchange for an ongoing or streaming service, such as paying for a movie 1 Mb at a time. We used to use this to also refer to what we now call Chunked Payments.
 
@@ -27,7 +29,6 @@ Clone the repo, `npm install`, and run `DEBUG=* node example.js` to see end-to-e
 #### 1. Accommodating Low Maximum Payment Sizes
 
 Every payment path through the Interledger will have some Maximum Payment Size (MPS, like the Internet's Maximum Transmission Unit or how large packets can be). The average MPS is likely to be low because of connector risk and liquidity factors. Chunked payments will be required if senders ever want to send larger amounts than the path MPS.
-
 
 #### 2. Enabling Smaller Connectors
 
@@ -49,6 +50,10 @@ Interledger can be used with any ledger using different types of [Hashed Timeloc
 
 If we can assume all payments are small, we can simplify the Interledger protocol stack further. For example, [liquidity curves](https://github.com/interledger/rfcs/blob/master/0008-interledger-quoting-protocol/0008-interledger-quoting-protocol.md#quoteliquidityresponse) are only necessary if payments vary greatly in size. A simple exchange rate suffices for small payments.
 
+#### 7. Hiding Test Payments
+
+If all payments across the Interledger are small, it should be harder for connectors to identify test payments sent by other connectors to probe routes. This should enable connectors to keep better statistics on the real rates and connectivity provided by their peers.
+
 ### Disadvantages of Chunked Payments
 
 **Note:** These are potentially serious issues, but it is important to note that they are inevitable if anyone ever wants to send larger payments than the payment path can support. One of the main questions we have to answer now is whether we expect the average Maximum Payment Size to be on the order of $1, $10, $100, $1000 or more. The higher this number, the greater the risk and liquidity requirements will be for connectors, which in turn limits the pool of potential connectors.
@@ -61,10 +66,9 @@ If the whole payment is no longer delivered atomically, there is a possibility t
 
 The rate for a payment can change due to legitimate or illegitimate reasons after the first chunk is sent but before the last one is received. If the exchange rate changes dramatically and unpredictably over the course of a payment, it would make for a bad sender experience.
 
-# Differences from ILPv1
+## Differences from ILPv1
 
-## Interledger Layer
-
+### Interledger Layer
 
 #### 1. Forwarding Only
 
@@ -94,8 +98,7 @@ Liquidity curves were necessary to express how exchange rates varied with paymen
 
 In this implementation, the ILP data is simply the body of an HTTP request, which connectors can stream from the incoming request to the outgoing request, rather than buffering it all into memory. If that becomes standard practice, connectors could allow larger amounts of data to travel with ILP payments, because the impact on the connector would be minimal.
 
-## Ledger Layer
-
+### Ledger Layer
 
 #### 1. Fulfillments and Errors are Responses, Not Requests
 
@@ -111,10 +114,29 @@ Since the ledger layer protocol only needs to handle a single request/response c
 
 #### 4. Fast HTLAs Only
 
-Interledger can theoretically support a wide variety of ledger integrations (see [Hashed Timelock Agreements (HTLAs)](https://interledger.org/rfcs/0022-hashed-timelock-agreements/#simple-payment-channels)), but today, most ledgers available are too slow or expensive for on-ledger escrow to provide a good experience. Payment channels and trustlines should be the only recommended HTLA types for now and other protocols should be built to assume that transfers can be executed in milliseconds, as opposed to seconds or longer.
+Interledger can theoretically support a wide variety of ledger integrations (see [Hashed Timelock Agreements (HTLAs)](https://interledger.org/rfcs/0022-hashed-timelock-agreements/#simple-payment-channels)), but today, most ledgers available are too slow or expensive for on-ledger escrow to provide a good experience. Payment channels and trustlines should be the only recommended HTLA types for now and other protocols should be built to assume that transfers can be executed in milliseconds, as opposed to seconds or longer. This recommendation would change once ledgers are capable of processing large volumes of payments with negligible costs and latency.
 
-## Implementation
+### Transport Layer
 
+#### 1. Only Hash Data
+
+Unlike PSK 1.0, this implementation of PSK only hashes the ILP data, rather than the whole ILP packet.
+
+#### 2. Include End-to-End Quoting and Chunked Payments
+
+In addition to encrypting the end-to-end data and generating the fulfillment and condition, this version of PSK also handles end-to-end quoting and chunked payments. This allows all details associated with these use cases to be encrypted within the PSK data, and allows senders to assume that any receiver that supports PSK will support end-to-end quoting and chunked payments. @sentientwaffle raised the question of whether E2E quoting and chunked payments should be part of PSK or implemented as a separate "layer" built on top of it (so PSK would only handle encryption and condition generation), and this should be discussed further.
+
+#### 3. Out of Band Cipher Negotiation
+
+PSK 1.0 includes the cipher suite in the "public headers" outside of the encrypted data. Instead of putting plaintext data into the ILP data, the cipher negotiation should be part of the PSK details exchanged between the sender and receiver (which currently consist of the receiver's address and the shared secret). This version of PSK assumes the cipher is AES-256-GCM.
+
+#### 4. No Set Destination Amount
+
+Currently, this implementation of PSK does not include a destination amount in the encrypted data. The receiver fulfills every incoming chunk they see and they use the fulfillment data to communicate back to the sender how much arrived (this is encrypted and authenticated). It is then up to the sender whether they want to continue sending more chunks, the chunk size to use, and whether they should switch to a different connector. @michielbdejong has raised a number of potential issues with this approach, which should be explored in greater depth.
+
+One alternative would be for the sender to use the first payment chunk as a kind of quote and then to inform the receiver how much to expect on each successive chunk. This would provide the same properties as requesting a quote using ILQP and then sending multiple payments using ILPv1. However, connectors could still play with their rates on the first chunk.
+
+### Implementation
 
 #### 1. Middleware Instead of Plugins
 
