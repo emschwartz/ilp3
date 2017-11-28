@@ -80,7 +80,7 @@ In order to support the "delivery" feature, connectors needed to know whether th
 
 #### 3. No Destination Amount in the ILP Packet
 
-The amount field in the ILP packet was intended for transport layer protocols and for connectors to be able to deliver the exact destination amount. Since there is no delivery, there is no need for a destination amount field to be part of the standard ILP packet understood by every connector. Transport layer protocols can include the amount in the data field if they so choose.
+The amount field in the ILP packet was intended for transport layer protocols and for connectors to be able to deliver the exact destination amount. Since there is no delivery, there is no need for a destination amount field to be part of the standard ILP packet understood by every connector. Transport layer protocols can include the amount in the data field if they so choose. This change is fundamental, and may seem to introduce a Diner's Dilemma, but as discussed in https://github.com/interledger/rfcs/issues/340, ILP v3 avoids this problem by adding test payments, which can either be organized from every connector to every destination ledger, or (more efficiently), connectors could pool together to set up rating agencies which provide a hosted testing service. Keeping track of connector reputation has always been a central problem in Interledger network dynamics, but since ILP v3 only deals with small payments, we think test payments and rating agencies will be so much more effective that they will avoid the Diner's Dilemma.
 
 #### 4. End-to-End Quoting
 
